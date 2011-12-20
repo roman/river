@@ -2,7 +2,7 @@
   (:use [core.stream.types :only
           [continue continue? yield yield? eof eof?]]
 
-        [core.iteratee.enumerators :only
+        [core.stream.producers :only
           [produce-input-stream-bytes 
            produce-input-stream-lines]]))
 
