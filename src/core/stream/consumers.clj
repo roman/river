@@ -1,5 +1,5 @@
-(ns core.iteratee.iteratees
-  (:use core.iteratee.types))
+(ns core.stream.consumers
+  (:use core.stream.types))
 
 (defn print-chunks [stream]
   (cond

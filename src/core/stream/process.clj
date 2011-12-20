@@ -1,5 +1,5 @@
-(ns core.iteratee.process
-  (:use [core.iteratee.types :only
+(ns core.stream.process
+  (:use [core.stream.types :only
           [continue continue? yield yield? eof eof?]]
 
         [core.iteratee.enumerators :only

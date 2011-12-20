@@ -1,12 +1,12 @@
-(ns core.iteratee.types)
+(ns core.stream.types)
 
-(defrecord IterateeResult [result remainder])
+(defrecord ConsumerDone [result remainder])
 
 (defn yield? 
-  [step] (-> (type step) (= IterateeResult)))
+  [step] (-> (type step) (= ConsumerDone)))
 
 (defn yield [result remainder]
-  (IterateeResult. result remainder))
+  (ConsumerDone. result remainder))
 
 (def continue? fn?)
 (def continue identity)

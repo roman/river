@@ -1,6 +1,6 @@
-(ns core.iteratee.enumeratees
-  (:use core.iteratee.types
-        [core.iteratee.enumerators :only
+(ns core.stream.filters
+  (:use core.stream.types
+        [core.stream.producers :only
           [produce-eof]]))
 
 (defn map* [map-fn inner-consumer]
@@ -56,6 +56,8 @@
 
 (defn isolate* [total-chunks inner-consumer]
   (gen-isolate-fn 0 total-chunks inner-consumer))
+
+(declare gen-filter-fn)
 
 (defn to-filter [consumer0 inner-consumer]
   (cond

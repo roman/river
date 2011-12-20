@@ -1,5 +1,5 @@
-(ns core.iteratee.enumerators
-  (:use [core.iteratee.types :only
+(ns core.stream.producers
+  (:use [core.stream.types :only
           [continue continue? yield yield? eof]])
 
   (:import [java.io LineNumberReader InputStreamReader]))
