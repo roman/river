@@ -1,12 +1,7 @@
 (ns core.iteratee.enumeratees
   (:use core.iteratee.types
         [core.iteratee.enumerators :only
-          [enum-eof]]))
-
-(defn ensure-done [consumer stream]
-  (cond
-    (continue? consumer) (consumer stream)
-    (yield? consumer) consumer))
+          [produce-eof]]))
 
 (defn map* [map-fn inner-consumer]
   (fn outer-consumer [stream]
@@ -27,7 +22,7 @@
   (fn outer-consumer [stream]
     (cond 
       (eof? stream) 
-        (for [c inner-consumers] (enum-eof c))
+        (for [c inner-consumers] (produce-eof c))
       :else
         (apply zip* (for [c inner-consumers] (ensure-done c stream))))))
 
@@ -49,20 +44,20 @@
         (let [result (take-while a-fn stream)]
           (if (= result stream)
               (stream-while* a-fn (inner-consumer result))
-              (enum-eof (inner-consumer result)))))))
+              (produce-eof (inner-consumer result)))))))
 
-(defn- isolate-helper [chunk-count total-chunks inner-consumer]
+(defn- gen-isolate-fn [chunk-count total-chunks inner-consumer]
   (fn outer-consumer [stream]
     (if (>= chunk-count total-chunks)
-      (enum-eof inner-consumer)
-      (isolate-helper (inc chunk-count)
+      (produce-eof inner-consumer)
+      (gen-isolate-fn (inc chunk-count)
                       total-chunks
                       (inner-consumer stream)))))
 
 (defn isolate* [total-chunks inner-consumer]
-  (isolate-helper 0 total-chunks inner-consumer))
+  (gen-isolate-fn 0 total-chunks inner-consumer))
 
-(defn to-enumeratee [consumer0 inner-consumer0]
+(defn to-filter [consumer0 inner-consumer0]
   (letfn [
     (go [consumer]
       (fn outer-consumer [stream]
@@ -74,7 +69,7 @@
               (continue? next-consumer)
                 (go next-consumer)
               :else
-                (to-enumeratee
+                (to-filter
                   consumer0
                   (inner-consumer0 (:result next-consumer))))))))
   ]
@@ -83,6 +78,6 @@
     :else (go consumer0))))
   
 
-(defn to-enumarator [enumerator enumeratee]
-  #(enumerator (enumeratee %)))
+(defn attach-filter [producer a-filter]
+  #(producer (a-filter %)))
 

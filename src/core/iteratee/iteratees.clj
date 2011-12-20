@@ -15,19 +15,18 @@
         (continue print-chunks))))
 
 
-(defn consume [empty-seq stream0]
-  (letfn [
-    (go [acc stream]
-      (let [new-acc (conj acc stream)]
-      (cond
-        (eof? stream) (yield (concat acc) nil)
-        :else
-          (continue #(go new-acc %)))))
-  ]
-  (go empty-seq stream0)))
+(defn- consume-helper [acc stream]
+  (let [new-acc (conj acc stream)]
+    (cond
+      (eof? stream) (yield (concat acc) nil)
+      :else
+        (continue #(consume-helper new-acc %)))))
 
+(defn consume
+  ([stream0] (consume [] stream0))
+  ([empty-seq stream0]
+    (consume-helper empty-seq stream0)))
 
 (def consume-in-set #(consume #{} %))
-(def consume-in-vector #(consume [] %))
 (def consume-in-list #(consume () %))
 

@@ -16,3 +16,8 @@
 
 (def empty-chunk? empty?)
 
+(defn ensure-done [consumer stream]
+  (cond
+    (continue? consumer) (consumer stream)
+    (yield? consumer) consumer))
+
