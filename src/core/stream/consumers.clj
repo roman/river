@@ -1,10 +1,17 @@
 (ns core.stream.consumers
   (:use core.stream.types))
 
+(defn head [stream]
+  (cond
+    (eof? stream) (yield nil eof)
+    (empty-chunk? stream) (continue head)
+    :else
+      (yield (first stream) (rest stream))))
+
 (defn print-chunks [stream]
   (cond
     (eof? stream)
-      (yield nil nil)
+      (yield nil eof)
 
     (empty-chunk? stream)
       (continue print-chunks)
@@ -18,7 +25,7 @@
 (defn- consume-helper [acc stream]
   (let [new-acc (conj acc stream)]
     (cond
-      (eof? stream) (yield (concat acc) nil)
+      (eof? stream) (yield (concat acc) eof)
       :else
         (continue #(consume-helper new-acc %)))))
 
