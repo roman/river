@@ -20,8 +20,8 @@
 
 (defn zip* [& inner-consumers]
   (fn outer-consumer [stream]
-    (cond 
-      (eof? stream) 
+    (cond
+      (eof? stream)
         (for [c inner-consumers] (produce-eof c))
       :else
         (apply zip* (for [c inner-consumers] (ensure-done c stream))))))
@@ -57,26 +57,27 @@
 (defn isolate* [total-chunks inner-consumer]
   (gen-isolate-fn 0 total-chunks inner-consumer))
 
-(defn to-filter [consumer0 inner-consumer0]
-  (letfn [
-    (go [consumer]
-      (fn outer-consumer [stream]
-        (cond
-          (eof? stream) (inner-consumer0 eof)
-          :else
-            (let [next-consumer (consumer stream)]
+(defn to-filter [consumer0 inner-consumer]
+  (cond
+    (yield? inner-consumer)
+      inner-consumer
+    :else
+      ((gen-filter-fn consumer0 inner-consumer) consumer0)))
+
+(defn- gen-filter-fn [consumer0 inner-consumer]
+  (fn new-filter [consumer]
+    (fn outer-consumer [stream]
+      (cond
+        (eof? stream)
+          (inner-consumer eof)
+        :else
+          (let [next-consumer (consumer stream)]
             (cond
               (continue? next-consumer)
-                (go next-consumer)
+                (new-filter next-consumer)
               :else
-                (to-filter
-                  consumer0
-                  (inner-consumer0 (:result next-consumer))))))))
-  ]
-  (cond 
-    (yield? inner-consumer0) inner-consumer0
-    :else (go consumer0))))
-  
+                (to-filter consumer0
+                          (inner-consumer (:result next-consumer)))))))))
 
 (defn attach-filter [producer a-filter]
   #(producer (a-filter %)))
