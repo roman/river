@@ -10,7 +10,7 @@
     (continue? consumer)
       (let [result (consumer eof)]
         (if (continue? result)
-          (throw Exception "ERROR: Missbehaving consumer")
+          (throw (Exception. "ERROR: Missbehaving consumer"))
           result))))
 
 (defn produce-seq [chunk-size a-seq consumer]
