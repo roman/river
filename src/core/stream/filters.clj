@@ -3,6 +3,14 @@
         [core.stream.producers :only
           [produce-eof]]))
 
+(defn mapcat* [map-fn inner-consumer]
+  (fn outer-consumer [stream]
+    (cond
+      (eof? stream)
+        (inner-consumer eof)
+      :else
+        (mapcat* map-fn (inner-consumer (mapcat map-fn stream))))))
+
 (defn map* [map-fn inner-consumer]
   (fn outer-consumer [stream]
     (cond

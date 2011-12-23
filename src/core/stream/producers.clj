@@ -1,4 +1,5 @@
 (ns core.stream.producers
+  (:require [clojure.core :as core])
   (:use [core.stream.types :only
           [continue continue? yield yield? eof]])
 
@@ -59,9 +60,9 @@
           :else next-consumer))
         consumer))))
 
-
 (defn produce-input-stream-lines
   [input-stream consumer0]
     ((gen-input-stream-line-producer input-stream) 
       consumer0))
+
 
