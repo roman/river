@@ -1,108 +1,113 @@
 (ns core.stream
-
-  (:require [clojure.algo.monads :as m])
-
-;;;;;;;;;;;;;;;;;;;;
-
-  (:use core.stream.types
-        core.stream.producers
-        core.stream.consumers
-        core.stream.filters)
-  (:require [core.stream.process :as sp])
-  (:import [core.stream.types ConsumerDone]))
+  (:require [clojure.algo.monads :as monad]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(def run* produce-eof)
+(defrecord ConsumerDone [result remainder])
 
+(def eof ::eof)
+(def eof? #(= ::eof %))
 
-(m/defmonad stream-m
-  [ m-result (fn [v] (ConsumerDone. v []))
-    m-bind   (fn bind-fn [step gn]
+(def empty-chunk? empty?)
+
+(defn yield?
+  [step] (-> (type step) (= ConsumerDone)))
+
+(defn yield [result remainder]
+  (ConsumerDone. result remainder))
+
+(defn has-remainder? [result]
+  (not (eof? (:remainder result))))
+
+(defn no-remainder? [result]
+  (eof? (:remainder result)))
+
+(defn empty-remainder? [result]
+  (and (not (no-remainder? result))
+       (empty? (:remainder result))))
+
+(def continue? fn?)
+(def continue identity)
+
+(defn ensure-done [consumer stream]
+  (cond
+    (continue? consumer) (consumer stream)
+    (yield? consumer) consumer))
+
+(monad/defmonad stream-m
+  [ m-result (fn [v] (yield v []))
+    m-bind   (fn bind-fn [step f]
                (cond
                  (and (yield? step)
-                      (no-remainder? step))
-                   (gn (:result step))
+                      (empty-remainder? step))
+                   (f (:result step))
 
-                 (and (yield? step)
-                      (has-remainder? step))
-                   (let [step-2 (gn (:result step))]
+                 (yield? step)
+                   (let [step-2 (f (:result step))]
                      (cond
                        (continue? step-2)
                          (step-2 (:remainder step))
                        (yield? step-2)
                          (yield (:result step-2)
                                 (:remainder step))))
-                 (continue? step)
-                   (comp #(bind-fn % gn) step)))
 
+                 (continue? step)
+                   (comp #(bind-fn % f) step)))
   ])
 
-; testing
+(defn produce-eof [consumer]
+  (cond
+    (yield? consumer) consumer
+    (continue? consumer)
+      (let [result (consumer eof)]
+        (if (continue? result)
+          (throw (Exception. "ERROR: Missbehaving consumer"))
+          result))))
 
-;(println
-;  (run*
-;    (sp/produce-proc-lines "ls -l"
-;      (to-filter print-chunks consume))))
+(defn- gen-filter-fn [filter-consumer0 filter-consumer inner-consumer]
+  (cond
+    (yield? inner-consumer) inner-consumer
+    :else
+      (cond
+        (yield? filter-consumer)
+          (let [filter-result       (:result filter-consumer)
+                filter-remainder    (:remainder filter-consumer)
+                next-inner-consumer (inner-consumer filter-result)]
 
-;(println
-;  (run*
-;    ((attach-filter
-;      (partial sp/produce-proc-lines "ls -l")
-;      (partial to-filter print-chunks))
-;      consume)))
+            (if (no-remainder? filter-consumer)
+              (recur filter-consumer0
+                     filter-consumer
+                     (ensure-done next-inner-consumer eof))
 
-;(println
-;  (run*
-;    (sp/produce-proc-lines "ls -l" consume)))
+              (recur filter-consumer0
+                     (filter-consumer0 filter-remainder)
+                     next-inner-consumer)))
 
-;(println
-;  (run*
-;    (sp/produce-proc-bytes "ls -l" consume)))
+        :else
+          (fn filter-fn [stream]
+            (gen-filter-fn filter-consumer0
+                           (filter-consumer stream)
+                           inner-consumer)))))
 
-;(println
-;    (run* (produce-seq 5 (range 1 10) consume)))
+(defn to-filter [filter-consumer0 inner-consumer]
+  (gen-filter-fn filter-consumer0 filter-consumer0 inner-consumer))
 
-;(println
-;  (run*
-;    (produce-seq 5 (range 1 10)
-;      (map* #(+ % 1) consume))))
+(defn is-eof? [stream]
+  (cond
+    (eof? stream) (yield true eof)
+    :else (yield false stream)))
 
-;(println
-;  (run*
-;    (produce-seq 5 (range 1 10)
-;      (filter* #(< % 5) consume))))
+(defn print-chunks [stream]
+  (cond
+    (eof? stream)
+      (yield nil eof)
 
-;(println
-;  (run*
-;    (produce-seq 5 (range 1 10)
-;      (zip* consume))))
+    (empty-chunk? stream)
+      (continue print-chunks)
 
-;(println
-;  (run*
-;    (produce-seq 5 (range 1 10)
-;      (zip* consume
-;            (map* #(+ % 1) consume)))))
+    :else
+      (do
+        (println stream)
+        (continue print-chunks))))
 
-;(println
-;  (run*
-;    (sp/produce-proc-lines "ls -l"
-;      (zip* consume
-;            (map* #(.toUpperCase %) consume-in-list)))))
-
-;(println
-;  (run*
-;    (produce-seq 5 (range 1 10)
-;      (m/domonad stream-m [a head] a))))
-
-;(def two-heads
-;  (m/domonad stream-m
-;    [a head
-;     b head]
-;    [a b]))
-;
-;(println
-;  (run*
-;    (produce-seq 5 (range 1 10) two-heads)))
-
-
+(def run* produce-eof)
