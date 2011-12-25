@@ -5,57 +5,81 @@
 
 (defrecord ConsumerDone [result remainder])
 
-(def eof ::eof)
-(def eof? #(= ::eof %))
+(def ^{:doc "The EOF value used by the stream algorithms"}
+  eof ::eof)
+(def ^{:doc "Returns true when the eof value is given."}
+  eof? #(= eof %))
 
-(def empty-chunk? empty?)
+(def ^{:doc "Returns true when a chunk is empty."}
+  empty-chunk? empty?)
 
 (defn yield?
-  [step] (-> (type step) (= ConsumerDone)))
+  "Returns true when the consumer is a result rather than a continuation."
+  [consumer] (-> (type consumer) (= ConsumerDone)))
 
-(defn yield [result remainder]
-  (ConsumerDone. result remainder))
+(defn yield
+  "Returns a result from a consumer, the only way to return results is
+  by using the yield function"
+  [result remainder] (ConsumerDone. result remainder))
 
-(defn has-remainder? [result]
-  (not (eof? (:remainder result))))
 
-(defn no-remainder? [result]
-  (eof? (:remainder result)))
+(defn has-remainder?
+  "Returns true when the remainder of a consumer result is not EOF."
+  [result] (not (eof? (:remainder result))))
 
-(defn empty-remainder? [result]
+(defn no-remainder?
+  "Returns true when the remainder of a consumer is EOF."
+  [result] (eof? (:remainder result)))
+
+(defn empty-remainder?
+  "Returns true when the remainder of a consumer result is not EOF and
+  it is empty."
+  [result]
   (and (not (no-remainder? result))
        (empty? (:remainder result))))
 
-(def continue? fn?)
-(def continue identity)
+(def
+  ^{:doc "Returns true when the consumer is a continuation."}
+  continue? fn?)
 
-(defn ensure-done [consumer stream]
+(def
+  ^{:doc "Returns a continuation from a consumer." }
+  continue identity)
+
+(defn ensure-done
+  "Checks if the consumer has yielded a result, if that's the case it just
+  returns the given consumer, otherwise it will call the consumer's
+  continuation with the given stream as it's input."
+  [consumer stream]
   (cond
     (continue? consumer) (consumer stream)
     (yield? consumer) consumer))
 
 (monad/defmonad stream-m
   [ m-result (fn [v] (yield v []))
-    m-bind   (fn bind-fn [step f]
+    m-bind   (fn bind-fn [consumer f]
                (cond
-                 (and (yield? step)
-                      (empty-remainder? step))
-                   (f (:result step))
+                 (and (yield? consumer)
+                      (empty-remainder? consumer))
+                   (f (:result consumer))
 
-                 (yield? step)
-                   (let [step-2 (f (:result step))]
+                 (yield? consumer)
+                   (let [next-consumer (f (:result consumer))]
                      (cond
-                       (continue? step-2)
-                         (step-2 (:remainder step))
-                       (yield? step-2)
-                         (yield (:result step-2)
-                                (:remainder step))))
+                       (continue? next-consumer)
+                         (next-consumer (:remainder consumer))
+                       (yield? next-consumer)
+                         (yield (:result next-consumer)
+                                (:remainder consumer))))
 
-                 (continue? step)
-                   (comp #(bind-fn % f) step)))
+                 (continue? consumer)
+                   (comp #(bind-fn % f) consumer)))
   ])
 
-(defn produce-eof [consumer]
+(defn produce-eof
+  "Feeds an EOF to the given consumer, in case the consumer doesn't yield
+  a result, an exception is thrown."
+  [consumer]
   (cond
     (yield? consumer) consumer
     (continue? consumer)
@@ -89,22 +113,27 @@
                            (filter-consumer stream)
                            inner-consumer)))))
 
-(defn to-filter [filter-consumer0 inner-consumer]
+(defn to-filter
+  "Transforms a consumer into a filter by feeding the outer input elements
+  into the provided consumer until it yields an inner input, passes that to
+  the inner consumer and then loops."
+  [filter-consumer0 inner-consumer]
   (gen-filter-fn filter-consumer0 filter-consumer0 inner-consumer))
 
-(defn is-eof? [stream]
+(defn is-eof?
+  "A consumer that yields a boolean that tells if the feed has reached
+  the EOF."
+  [stream]
   (cond
     (eof? stream) (yield true eof)
     :else (yield false stream)))
 
 (defn print-chunks [stream]
+  "A consumer that prints the chunks is receiving into standard output,
+  this consumer will consume all the stream and it will yield a nil value."
   (cond
-    (eof? stream)
-      (yield nil eof)
-
-    (empty-chunk? stream)
-      (continue print-chunks)
-
+    (eof? stream) (yield nil eof)
+    (empty-chunk? stream) (continue print-chunks)
     :else
       (do
         (println stream)
