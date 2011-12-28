@@ -94,7 +94,7 @@
                  (stream/require* 8 stream/consume))))))
 
 (deftest stream-while*-test
-  (let [result (run* 
+  (let [result (run*
                   (stream/produce-seq 10 (range 1 20)
                     (stream/stream-while* not-fizzbuzz stream/consume)))]
     (is (= (range 1 15) (:result result)))
@@ -103,7 +103,7 @@
 (deftest split-when*-test
   (let [result (run*
                   (stream/produce-seq 10 (range 1 12)
-                    (stream/split-when* #(= 0 (mod % 3)) 
+                    (stream/split-when* #(= 0 (mod % 3))
                       stream/consume)))]
     (is (= [[1 2 3] [4 5 6] [7 8 9] [10 11]] (:result result)))
     (is eof (:remainder result))))
