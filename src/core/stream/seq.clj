@@ -83,7 +83,7 @@
 (defn consume
   "Consumes all the stream and returns it in a seq, when called
   empty-seq is supplied, it will serve as the initial buffer
-  from where the stream is gonna be stored."
+  from where the stream is going to be stored."
   ([stream0] (consume [] stream0))
   ([empty-seq stream0]
     (take-while empty-seq (constantly true) stream0)))
@@ -119,12 +119,12 @@
 
 (defn peek [stream]
   "Returns the first item in the stream without actually removing it, returns
-  nil when the stream has reached the EOF."
+  nil when the stream has reached EOF."
   (cond
     (eof? stream) (yield nil eof)
     (empty-chunk? stream) (continue peek)
     :else
-      (yield (core/peek stream) stream)))
+      (yield (core/first stream) stream)))
 
 ;; Producers ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -145,55 +145,75 @@
 
 (defn produce-iterate
   "Produces an infinite stream by applying the f function on the zero value
-  indefinitely. The consumer will be feed with chunks containing just 1 item."
-  [f zero consumer]
-  (cond
-    (yield? consumer) consumer
-    :else
-      (recur f (f zero) (consumer [zero]))))
+  indefinitely. Each chunk is going to have buffer-size items, 8 by default."
+  ([f zero consumer]
+    (produce-iterate 8 f zero consumer))
+  ([buffer-size f zero consumer]
+    (produce-seq buffer-size (core/iterate f zero) consumer)))
 
 (defn produce-repeat
   "Produces an infinite stream that will have the value elem indefinitely.
-  The consumer will be feed with chunks containing just 1 item."
-  [elem consumer]
-  (cond
-    (yield? consumer) consumer
-    :else
-      (recur elem (consumer [elem]))))
+  Each chunk is going to have buffer-size items, 8 by default."
+  ([elem consumer] (produce-repeat 8 elem consumer))
+  ([buffer-size elem consumer]
+    (produce-seq buffer-size (core/repeat elem) consumer)))
 
 (defn produce-replicate
-  "Produces a stream that will have the elem value n times. The consumer will
-  be feed with chunks containing just 1 item."
-  [n elem consumer]
-  (if (or (= n 0) (yield? consumer))
-    consumer
-    (recur (dec n) elem (consumer [elem]))))
+  "Produces a stream that will have the elem value n times. Each chunk is
+  going to have buffer-size items, 8 by default."
+  ([elem consumer] (produce-repeat 8 elem consumer))
+  ([buffer-size elem consumer]
+    (produce-seq buffer-size (core/repeat elem) consumer)))
+
+(defn produce-replicate
+  "Produces a stream that will have the elem value n times. Each chunk is
+  going to have buffer-size items, 8 by default."
+  ([n elem consumer] (produce-replicate 8 n elem consumer))
+  ([buffer-size n elem consumer]
+    (produce-seq buffer-size (core/replicate n elem) consumer)))
+
+(defn- generate [f]
+  (if-let [result (f)]
+    (cons result (core/lazy-seq (generate f)))
+    []))
 
 (defn produce-generate
-  "Produces a stream with the f function, likely f will have side effects
+  "Produces a stream with the f function, f will likely have side effects
   because it will return a new value each time. When the f function returns
   a falsy value, the function will stop producing values to the stream.
-  The consumer will be feed with chunks containing just 1 item."
-  [f consumer]
-  (if-let [result (f)]
-    (if (continue? consumer)
-      (recur f (consumer [result]))
-      consumer)
-    consumer))
+  Each chunk is going to have buffer-size items, 8 by default."
+  ([f consumer] (produce-generate 8 f consumer))
+  ([buffer-size f consumer]
+    (produce-seq buffer-size (generate f) consumer)))
+  ;[f consumer]
+  ;(if-let [result (f)]
+  ;  (if (continue? consumer)
+  ;    (recur f (consumer [result]))
+  ;    consumer)
+  ;  consumer))
+
+(defn- unfold [f zero]
+  (if-let [whole-result (f zero)]
+    (let [[new-zero result] whole-result]
+      (cons result (core/lazy-seq (unfold f new-zero))))
+    []))
 
 (defn produce-unfold
   "Produces a stream with the f function, f will be a function that receive
   an initial zero value, and it will return a tuple with the next value and
   a new zero, the value returned will be fed to the consumer. The stream will
-  stop when the f function returns a falsy value. The consumer will be feed
-  with chunks containing just 1 item."
-  [f zero consumer]
-  (if-let [whole-result (f zero)]
-    (if (yield? consumer)
-      consumer
-      (let [[new-zero result] whole-result]
-        (recur f new-zero (consumer result))))
-    consumer))
+  stop when the f function returns a falsy value. Each chunk is going to have
+  buffer-size items, 8 by default."
+  ([f zero consumer] (produce-unfold 8 f zero consumer))
+  ([buffer-size f zero consumer]
+    (produce-seq buffer-size (unfold f zero) consumer)))
+  ;[f zero consumer]
+  ;(if-let [whole-result (f zero)]
+  ;  (if (yield? consumer)
+  ;    consumer
+  ;    (let [[new-zero result] whole-result]
+  ;      (recur f new-zero (consumer result))))
+  ;  consumer))
 
 ;; Filters  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
