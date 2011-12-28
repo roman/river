@@ -1,5 +1,9 @@
 (ns core.stream.seq
 
+  ^{
+    :author "Roman Gonzalez"
+  }
+
 ;; Standard Lib ;;;;
 
   (:refer-clojure :exclude
@@ -39,7 +43,7 @@
   ([pred stream] (take-while [] pred stream))
   ([buffer pred stream]
     (cond
-      (eof? stream) (yield buffer eopred)
+      (eof? stream) (yield buffer eof)
       (empty-chunk? stream) (continue #(take-while buffer pred %))
       :else
         (let [taken-elems (core/take-while pred stream)
@@ -161,7 +165,7 @@
   "Produces a stream that will have the elem value n times. The consumer will
   be feed with chunks containing just 1 item."
   [n elem consumer]
-  (if (or (= times 0) (yield? consumer))
+  (if (or (= n 0) (yield? consumer))
     consumer
     (recur (dec n) elem (consumer [elem]))))
 

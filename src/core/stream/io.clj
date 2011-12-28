@@ -1,5 +1,9 @@
 (ns core.stream.io
 
+  ^{
+    :author "Roman Gonzalez"
+  }
+
 ;; Standard Lib ;;;;
 
   (:import [java.io LineNumberReader
