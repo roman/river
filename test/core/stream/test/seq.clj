@@ -4,6 +4,7 @@
   (:use core.stream)
   (:require [core.stream.seq :as stream]))
 
+;; Producers ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (deftest produce-seq-test
   (let [result (run*
@@ -13,16 +14,18 @@
     (is (= eof (:remainder result)))))
 
 
+;; Consumers ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn- not-fizzbuzz [a]
+  (not (and (= (mod a 3) 0)
+            (= (mod a 5) 0))))
+
 (deftest take-test
   (let [result (run*
                   (stream/produce-seq 5 (range 1 20)
                     #(stream/take 7 %)))]
     (is (= (range 1 8) (:result result)))
     (is (= [8 9 10] (:remainder result)))))
-
-(defn- not-fizzbuzz [a]
-  (not (and (= (mod a 3) 0)
-            (= (mod a 5) 0))))
 
 (deftest take-while-test
   (let [result (run*
@@ -31,6 +34,19 @@
     (is (= (range 1 15)  (:result result)))
     (is (= (range 15 19) (:remainder result)))))
 
+(deftest drop-test
+  (let [result (run*
+                  (stream/produce-seq 3 (range 1 20)
+                    (partial stream/drop 5)))]
+    (is (nil? (:result result)))
+    (is (= [6] (:remainder result)))))
+
+(deftest drop-while-test
+  (let [result (run*
+                  (stream/produce-seq 7 (range 1 20)
+                    (partial stream/drop-while #(<= % 10))))]
+    (is (nil? (:result result)))
+    (is (= (range 11 15) (:remainder result)))))
 
 (deftest reduce-test
   (let [result (run*
@@ -41,11 +57,17 @@
 
 (deftest first-test
   (let [result (run*
-                 (stream/produce-seq 7 (range 21 30)
-                    stream/first))]
+                 (stream/produce-seq 7 (range 21 30) stream/first))]
     (is (= 21 (:result result)))
     (is (= (range 22 28) (:remainder result)))))
 
+(deftest peek-test
+  (let [result (run*
+                 (stream/produce-seq 7 (range 1 20) stream/peek))]
+    (is (= 1 (:result result)))
+    (is (= (range 1 8) (:remainder result)))))
+
+;; Filters  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (deftest map*-test
   (let [result (run*
