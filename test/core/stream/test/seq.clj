@@ -13,6 +13,37 @@
     (is (= (range 1 20) (:result result)))
     (is (= eof (:remainder result)))))
 
+(deftest produce-iterate-test
+  (let [result (run*
+                  ; chunk-size is 8 by default
+                  (stream/produce-iterate inc 1
+                    (partial stream/take 30)))]
+    (is (= (range 1 31) (:result result)))
+    (is (= [31 32] (:remainder result)))))
+
+(deftest produce-repeat-test
+  (let [result (run*
+                  ; chunk-size is 8 by default
+                  (stream/produce-repeat "hello" stream/peek))]
+    (is (= "hello" (:result result)))
+    (is (= (replicate 8 "hello") (:remainder result)))))
+
+(deftest produce-replicate-test
+  (let [result (run*
+                  (stream/produce-replicate 10 "hello" stream/consume))]
+    (is (= (replicate 10 "hello") (:result result)))
+    (is (= eof (:remainder result)))))
+
+(defn binary-unfold [n]
+  (if (<= n 0)
+    nil
+    [(mod n 2) (int (/ n 2))]))
+
+(deftest produce-unfold-test
+  (let [result (run*
+                  (stream/produce-unfold binary-unfold 8 stream/consume))]
+    (is (= [0 0 0 1] (:result result)))
+    (is (= eof (:remainder result)))))
 
 ;; Consumers ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -69,12 +100,6 @@
 
 ;; Filters  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(deftest map*-test
-  (let [result (run*
-                 (stream/produce-seq 7 (range 1 10)
-                    (stream/map* #(+ % 10) stream/consume)))]
-    (is (= (range 11 20) (:result result)))
-    (is (= eof (:remainder result)))))
 
 (deftest mapcat*-test
   (let [result (run*
@@ -82,6 +107,22 @@
                    (stream/mapcat* #(vector % %) stream/consume)))]
     (is (= [1 1 2 2 3 3] (:result result)))
     (is (= eof (:remainder result)))))
+
+(deftest map*-test
+  (let [result (run*
+                 (stream/produce-seq 7 (range 1 10)
+                    (stream/map* #(+ % 10) stream/consume)))]
+    (is (= (range 11 20) (:result result)))
+    (is (= eof (:remainder result)))))
+
+(deftest filter*-test
+  (let [result (run*
+                  (stream/produce-seq (range 0 11)
+                    (stream/filter* #(= 0 (mod % 2))
+                      #(stream/take 5 %))))]
+    (is (= [0 2 4 6 8] (:result result)))
+    (is (= [10] (:remainder result)))))
+
 
 (deftest zip*-test
   (let [result (run*

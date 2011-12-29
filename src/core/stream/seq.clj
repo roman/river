@@ -145,56 +145,40 @@
 
 (defn produce-iterate
   "Produces an infinite stream by applying the f function on the zero value
-  indefinitely. Each chunk is going to have buffer-size items, 8 by default."
+  indefinitely. Each chunk is going to have chunk-size items, 8 by default."
   ([f zero consumer]
     (produce-iterate 8 f zero consumer))
-  ([buffer-size f zero consumer]
-    (produce-seq buffer-size (core/iterate f zero) consumer)))
+  ([chunk-size f zero consumer]
+    (produce-seq chunk-size (core/iterate f zero) consumer)))
 
 (defn produce-repeat
   "Produces an infinite stream that will have the value elem indefinitely.
-  Each chunk is going to have buffer-size items, 8 by default."
+  Each chunk is going to have chunk-size items, 8 by default."
   ([elem consumer] (produce-repeat 8 elem consumer))
-  ([buffer-size elem consumer]
-    (produce-seq buffer-size (core/repeat elem) consumer)))
+  ([chunk-size elem consumer]
+    (produce-seq chunk-size (core/repeat elem) consumer)))
 
 (defn produce-replicate
   "Produces a stream that will have the elem value n times. Each chunk is
-  going to have buffer-size items, 8 by default."
-  ([elem consumer] (produce-repeat 8 elem consumer))
-  ([buffer-size elem consumer]
-    (produce-seq buffer-size (core/repeat elem) consumer)))
-
-(defn produce-replicate
-  "Produces a stream that will have the elem value n times. Each chunk is
-  going to have buffer-size items, 8 by default."
+  going to have chunk-size items, 8 by default."
   ([n elem consumer] (produce-replicate 8 n elem consumer))
-  ([buffer-size n elem consumer]
-    (produce-seq buffer-size (core/replicate n elem) consumer)))
-
-(defn- generate [f]
-  (if-let [result (f)]
-    (cons result (core/lazy-seq (generate f)))
-    []))
+  ([chunk-size n elem consumer]
+    (produce-seq chunk-size (core/replicate n elem) consumer)))
 
 (defn produce-generate
   "Produces a stream with the f function, f will likely have side effects
   because it will return a new value each time. When the f function returns
-  a falsy value, the function will stop producing values to the stream.
-  Each chunk is going to have buffer-size items, 8 by default."
-  ([f consumer] (produce-generate 8 f consumer))
-  ([buffer-size f consumer]
-    (produce-seq buffer-size (generate f) consumer)))
-  ;[f consumer]
-  ;(if-let [result (f)]
-  ;  (if (continue? consumer)
-  ;    (recur f (consumer [result]))
-  ;    consumer)
-  ;  consumer))
+  a falsy value, the function will stop producing values to the stream."
+  [f consumer]
+  (if-let [result (f)]
+    (if (continue? consumer)
+      (recur f (consumer [result]))
+      consumer)
+    consumer))
 
 (defn- unfold [f zero]
   (if-let [whole-result (f zero)]
-    (let [[new-zero result] whole-result]
+    (let [[result new-zero] whole-result]
       (cons result (core/lazy-seq (unfold f new-zero))))
     []))
 
@@ -203,17 +187,10 @@
   an initial zero value, and it will return a tuple with the next value and
   a new zero, the value returned will be fed to the consumer. The stream will
   stop when the f function returns a falsy value. Each chunk is going to have
-  buffer-size items, 8 by default."
+  chunk-size items, 8 by default."
   ([f zero consumer] (produce-unfold 8 f zero consumer))
-  ([buffer-size f zero consumer]
-    (produce-seq buffer-size (unfold f zero) consumer)))
-  ;[f zero consumer]
-  ;(if-let [whole-result (f zero)]
-  ;  (if (yield? consumer)
-  ;    consumer
-  ;    (let [[new-zero result] whole-result]
-  ;      (recur f new-zero (consumer result))))
-  ;  consumer))
+  ([chunk-size f zero consumer]
+    (produce-seq chunk-size (unfold f zero) consumer)))
 
 ;; Filters  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -223,11 +200,14 @@
   resulting seqs will be later concatenated and be feeded to the given
   consumer."
   [f inner-consumer]
-  (fn outer-consumer [stream]
-    (cond
-      (eof? stream) (inner-consumer eof)
-      :else
-        (mapcat* f (inner-consumer (mapcat f stream))))))
+  (cond
+    (yield? inner-consumer) inner-consumer
+    :else
+      (fn outer-consumer [stream]
+        (cond
+          (eof? stream) (inner-consumer eof)
+          :else
+            (mapcat* f (inner-consumer (mapcat f stream)))))))
 
 (defn map*
   "Transform the stream by applying function f to each element in the stream.
@@ -242,11 +222,14 @@
   the element should be kept in the stream or not. The consumer will be
   feed with the elements of the stream in which pred returns true."
   [pred inner-consumer]
-  (fn outer-consumer [stream]
-    (cond
-      (eof? stream) (inner-consumer eof)
-      :else
-        (filter* pred (inner-consumer (filter pred stream))))))
+  (cond
+    (yield? inner-consumer) inner-consumer
+    :else
+      (fn outer-consumer [stream]
+        (cond
+          (eof? stream) (inner-consumer eof)
+          :else
+            (filter* pred (inner-consumer (core/filter pred stream)))))))
 
 (defn zip*
   "Multiplexes the stream into multiple consumers, each of the consumers
@@ -265,55 +248,67 @@
   the stream until pred holds false, at that point the given inner-consumer
   will be feed with the receiving stream."
   [f inner-consumer]
-  (fn outer-consumer [stream]
-    (cond
-      (eof? stream) (inner-consumer eof)
-      :else
-        (let [result (core/drop-while f stream)]
-          (if (-> result empty? not)
-            (inner-consumer result)
-            (drop-while* f inner-consumer))))))
+  (cond
+    (yield? inner-consumer) inner-consumer
+    :else
+      (fn outer-consumer [stream]
+        (cond
+          (eof? stream) (inner-consumer eof)
+          :else
+            (let [result (core/drop-while f stream)]
+              (if (-> result empty? not)
+                (inner-consumer result)
+                (drop-while* f inner-consumer)))))))
 
 (defn isolate*
   "Prevents the consumer from receiving more stream than the specified in
   n, as soon as n elements had been feed, the filter will feed an EOF to
   the inner-consumer."
   [n inner-consumer]
-  (fn outer-consumer [stream]
-    (let [stream-count (count stream)]
-      (if (> stream-count n)
-        (produce-eof (inner-consumer (core/take n stream)))
-        (isolate* (- n stream-count) (inner-consumer stream))))))
+  (cond
+    (yield? inner-consumer) inner-consumer
+    :else
+      (fn outer-consumer [stream]
+        (let [stream-count (count stream)]
+          (if (> stream-count n)
+            (produce-eof (inner-consumer (core/take n stream)))
+            (isolate* (- n stream-count) (inner-consumer stream)))))))
 
 (defn require*
   "Throws an exception if there is not at least n elements streamed to
   the inner-consumer."
   [n inner-consumer]
-  (fn outer-consumer [stream]
-    (cond
-      (and (eof? stream)
-           (> n 0))
-        (throw (Exception. "ERROR: require* wasn't satisfied"))
+  (cond
+    (yield? inner-consumer) inner-consumer
+    :else
+      (fn outer-consumer [stream]
+        (cond
+          (and (eof? stream)
+               (> n 0))
+            (throw (Exception. "ERROR: require* wasn't satisfied"))
 
-      (<= n 0)
-        (inner-consumer stream)
+          (<= n 0)
+            (inner-consumer stream)
 
-      :else
-        (require* (- n (count stream))
-                  (inner-consumer stream)))))
+          :else
+            (require* (- n (count stream))
+                      (inner-consumer stream))))))
 
 (defn stream-while*
   "Streams elements to the inner-consumer until the f function returns a falsy
   value for a given item."
   [f inner-consumer]
-  (fn outer-consumer [stream]
-    (cond
-      (eof? stream) (inner-consumer eof)
-      :else
-        (let [result (core/take-while f stream)]
-          (if (= result stream)
-              (stream-while* f (inner-consumer result))
-              (produce-eof (inner-consumer result)))))))
+  (cond
+    (yield? inner-consumer) inner-consumer
+    :else
+      (fn outer-consumer [stream]
+        (cond
+          (eof? stream) (inner-consumer eof)
+          :else
+            (let [result (core/take-while f stream)]
+              (if (= result stream)
+                  (stream-while* f (inner-consumer result))
+                  (produce-eof (inner-consumer result))))))))
 
 (defn- split-when-consumer [f]
   (monad/domonad stream-m
