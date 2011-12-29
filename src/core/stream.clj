@@ -148,12 +148,18 @@
     (cons `partial consumer)
     consumer))
 
+(defn- ensure-in-list [producer-or-filter]
+  (if (seq? producer-or-filter)
+    producer-or-filter
+    (list producer-or-filter)))
+
 (defmacro nest-pfc
   ([consumers]
     (if (vector? consumers)
       (map partialize-consumer consumers)
       (partialize-consumer consumers)))
-  ([producer-or-filter & more]
+  ([producer-or-filter0 & more]
+    (let [producer-or-filter (ensure-in-list producer-or-filter0)]
     ; when the last item (consumer) is
     ; a vector (multiple consumers), then we just concat
     ; that to the producer/filter.
@@ -165,7 +171,7 @@
               (first more))
 
       (concat producer-or-filter
-              `((nest-pfc ~@more))))))
+              `((nest-pfc ~@more)))))))
 
 (defmacro run* [& more]
   `(run (nest-pfc ~@more)))
