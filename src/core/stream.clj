@@ -139,4 +139,33 @@
         (println stream)
         (continue print-chunks))))
 
-(def run* produce-eof)
+(def run produce-eof)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn- partialize-consumer [consumer]
+  (if (seq? consumer)
+    (cons `partial consumer)
+    consumer))
+
+(defmacro nest-pfc
+  ([consumers]
+    (if (vector? consumers)
+      (map partialize-consumer consumers)
+      (partialize-consumer consumers)))
+  ([producer-or-filter & more]
+    ; when the last item (consumer) is
+    ; a vector (multiple consumers), then we just concat
+    ; that to the producer/filter.
+    ; Multiple consumers is used at this moment in the zip* filter
+    (if (and (nil? (next more))
+             (vector? (first more)))
+
+      (concat producer-or-filter
+              (first more))
+
+      (concat producer-or-filter
+              `((nest-pfc ~@more))))))
+
+(defmacro run* [& more]
+  `(run (nest-pfc ~@more)))

@@ -6,7 +6,7 @@
             [core.stream.seq :as sseq]))
 
 (deftest produce-proc-lines-test
-  (let [result (run*
-                (sio/produce-proc-lines "pwd" sseq/first))]
+  (let [result (run* (sio/produce-proc-lines "pwd")
+                     sseq/first)]
     ; The name of the project (where the lein test is being executed)
     (is (re-find #"clj-stream" (:result result)))))
