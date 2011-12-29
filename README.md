@@ -40,7 +40,8 @@ To execute a consumer you will use the `run\*` macro:
 (core.stream/run* (core.stream.seq/produce-seq (range 1 100))
                   (core.stream.seq/filter* #(= 0 (mod % 2)))
                   (core.stream.seq/take 5))
-;; => #core.stream/ConsumerDome {:result (2 4 6 8 10), :remainder (12 14)}
+
+; => #core.stream/ConsumerDome {:result (2 4 6 8 10), :remainder (12 14)}
 ```
 
 The code above streams a seq from 1 to 99, then goes through a filter
@@ -56,34 +57,35 @@ either be a seq of items (called chunks), or an EOF signal, represented by
 
 ### Consumers ###
 
-The `consumer` is the one that process the stream, and it will either _yield_
+The _consumer_ is the one that process the stream, and it will either _yield_
 a result (using `core.stream/yield`) or a _continuation_ (using
 `core.stream/continue`).
 
-`yield` will be used when the consumer is done consuming from the stream, two
-values are returned with the yield, one being the _result_ value, and the
-second being the _remainder_ of the stream that wasn't consumed, this is kept
-in order to compose several consumers together using the monadic interface.
+`core.stream/yield` will be used when the consumer is done consuming from
+the stream, two values are returned with the yield, one being the _result_
+value, and the second being the _remainder_ of the stream that wasn't consumed,
+this is kept in order to compose several consumers together using the
+monadic interface.
 
-`continue` will be used when the consumer hasn't received enough chunks to
-yield a result, some consumers might consume part of the stream, some others
-would be greedy and consume all the available stream.
+`core.stream/continue` will be used when the consumer hasn't received enough
+chunks to yield a result, some consumers might consume part of the stream, some
+others would be greedy and consume all the available stream.
 
 ### Producers ###
 
-The `producer` generates the stream that the consumer will use, they normally
-consume a resource like a lazy-seq, file, socket, etc; and then transmits it
-over to the `consumer`. The advantage of using producers is that the stream
-generation is kept independent from the consumption, so the `consumer` doesn't
+The _producer_ generates the stream that the consumer will use, they normally
+consume a resource like a `lazy-seq`, file, socket, etc; and then transmits it
+over to the _consumer_. The advantage of using producers is that the stream
+generation is kept independent from the consumption, so the _consumer_ doesn't
 need to know where the data is coming from as long as it is valid.
 
-It stops consuming from the given resource as soon as the consumer returns a
-`yield` value.
+It stops consuming from the given resource as soon as the _consumer_ returns a
+_yield_ value.
 
 
 ### Filters ###
 
-The `filter` transforms the stream into something different, it either changes
+The _filter_ transforms the stream into something different, it either changes
 the type of the stream, or modifies the way the input is given.
 
 * * *
