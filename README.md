@@ -51,7 +51,7 @@ the given chunks.
 
 ### Stream ###
 
-The `stream` is what the consumer receive as an input, the stream could
+The _stream_ is what the consumer receive as an input, the stream could
 either be a seq of items (called chunks), or an EOF signal, represented by
 `core.stream/eof`.
 
