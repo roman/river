@@ -1,6 +1,6 @@
-# clj-stream #
+# river #
 
-clj-stream tries to provide an implementation of Oleg's Iteratee
+river tries to provide an implementation of Oleg's Iteratee
 library. The terminology was changed in order to offer a more intuitive API for
 the end user, however if you are familiar with Haskell's Iteratees, this might
 help you get started with this library:
@@ -11,18 +11,18 @@ help you get started with this library:
 
 The library is initally divided in 3 namespaces
 
-* `core.stream` provides:
+* `river.core` provides:
   * Basic constructs to build your own consumers/producers/filters.
   * A monad implemenation so that you can build monadic consumers.
   * Basic consumers for debugging streams.
   * A macro to easily execute the stream generation, composition and
     execution.
 
-* `core.stream.seq` provides:
+* `river.seq` provides:
   * All the expected combinators that are available for lazy seqs.
   * Handy filters for the streams like `map\*`, `filter\*`, etc.
 
-* `core.stream.io` provides:
+* `river.io` provides:
   * Ways to produce binary (byte) streams out of Java's `InputStream`s.
   * Produce line streams out of Java's `InputStream`s.
   * Produce input out of files (binary or lines).
@@ -37,11 +37,11 @@ the Iteratee concepts in Clojure.
 To execute a consumer you will use the `run\*` macro:
 
 ```clojure
-(core.stream/run* (core.stream.seq/produce-seq (range 1 100))
-                  (core.stream.seq/filter* #(= 0 (mod % 2)))
-                  (core.stream.seq/take 5))
+(river.core/run* (river.seq/produce-seq (range 1 100))
+                 (river.seq/filter* #(= 0 (mod % 2)))
+                 (river.seq/take 5))
 
-; => #core.stream/ConsumerDome {:result (2 4 6 8 10), :remainder (12 14)}
+; => #river.core/ConsumerDome {:result (2 4 6 8 10), :remainder (12 14)}
 ```
 
 The code above streams a seq from 1 to 99, then goes through a filter
@@ -53,21 +53,21 @@ the given chunks.
 
 The _stream_ is what the consumer receive as an input, the stream could
 either be a seq of items (called chunks), or an EOF signal, represented by
-`core.stream/eof`.
+`river.core/eof`.
 
 ### Consumers ###
 
 The _consumer_ is the one that process the stream, and it will either _yield_
-a result (using `core.stream/yield`) or a _continuation_ (using
-`core.stream/continue`).
+a result (using `river.core/yield`) or a _continuation_ (using
+`river.core/continue`).
 
-`core.stream/yield` will be used when the consumer is done consuming from
+`river.core/yield` will be used when the consumer is done consuming from
 the stream, two values are returned with the yield, one being the _result_
 value, and the second being the _remainder_ of the stream that wasn't consumed,
 this is kept in order to compose several consumers together using the
 monadic interface.
 
-`core.stream/continue` will be used when the consumer hasn't received enough
+`river.core/continue` will be used when the consumer hasn't received enough
 chunks to yield a result, some consumers might consume part of the stream, some
 others would be greedy and consume all the available stream.
 
@@ -105,13 +105,13 @@ list, etc. To implement this using the clj-stream library, you would do
 something like the following:
 
 ```clojure
-(ns core.stream.examples.sum
+(ns river.core.examples.sum
 
   (require [clojure.string :as string])
 
-  (use [core.stream])
-  (require [core.stream.seq :as sseq]
-           [core.stream.io  :as sio]))
+  (use [river.core])
+  (require [river.seq :as sseq]
+           [river.io  :as sio]))
 
 (def words*   (partial sseq/mapcat* #(string/split % #"\s+")))
 
@@ -138,12 +138,12 @@ Sometimes we want to create a new consumer composing simple consumers together,
 we can do that using the monadic API:
 
 ```clojure
-(ns core.stream.examples.monadic
+(ns river.core.examples.monadic
   (require [clojure.algo.monads :as monad])
 
-  (use [core.stream])
-  (require [core.stream.seq :as sseq]
-           [core.stream.io  :as sio]))
+  (use [river.core])
+  (require [river.seq :as sseq]
+           [river.io  :as sio]))
 
 (def drop-and-head
   (monad/domonad stream-m
