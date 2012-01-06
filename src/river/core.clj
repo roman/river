@@ -1,12 +1,23 @@
 (ns river.core
+
+  ^{
+    :author "Roman Gonzalez"
+  }
+
+;; Standard Lib ;;;;
   (:require [clojure.algo.monads :as monad]))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Consumer record, builder and query functions
+;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defrecord ConsumerDone [result remainder])
 
 (def ^{:doc "The EOF value used by the stream algorithms"}
   eof ::eof)
+
 (def ^{:doc "Returns true when the eof value is given."}
   eof? #(= eof %))
 
@@ -14,14 +25,14 @@
   empty-chunk? empty?)
 
 (defn yield?
-  "Returns true when the consumer is a result rather than a continuation."
+  "Returns true when the consumer is a result rather than a
+  continuation."
   [consumer] (-> (type consumer) (= ConsumerDone)))
 
 (defn yield
   "Returns a result from a consumer, the only way to return results is
   by using the yield function"
   [result remainder] (ConsumerDone. result remainder))
-
 
 (defn has-remainder?
   "Returns true when the remainder of a consumer result is not EOF."
@@ -46,6 +57,14 @@
   ^{:doc "Returns a continuation from a consumer." }
   continue identity)
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Utility functions
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
 (defn ensure-done
   "Checks if the consumer has yielded a result, if that's the case it just
   returns the given consumer, otherwise it will call the consumer's
@@ -54,6 +73,12 @@
   (cond
     (continue? consumer) (consumer stream)
     (yield? consumer) consumer))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Monadic implementation of Consumer
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (monad/defmonad stream-m
   [ m-result (fn [v] (yield v []))
@@ -76,6 +101,12 @@
                    (comp #(bind-fn % f) consumer)))
   ])
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Basic Producers/Consumers/Filters
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (defn produce-eof
   "Feeds an EOF to the given consumer, in case the consumer doesn't yield
   a result, an exception is thrown."
@@ -87,6 +118,25 @@
         (if (continue? result)
           (throw (Exception. "ERROR: Missbehaving consumer"))
           result))))
+
+(defn is-eof?
+  "A consumer that yields a boolean that tells if the feed has reached
+  the EOF."
+  [stream]
+  (cond
+    (eof? stream) (yield true eof)
+    :else (yield false stream)))
+
+(defn print-chunks [stream]
+  "A consumer that prints the chunks is receiving into standard output,
+  this consumer will consume all the stream and it will yield a nil value."
+  (cond
+    (eof? stream) (yield nil eof)
+    (empty-chunk? stream) (continue print-chunks)
+    :else
+      (do
+        (println stream)
+        (continue print-chunks))))
 
 (defn- gen-filter-fn [filter-consumer0 filter-consumer inner-consumer]
   (cond
@@ -120,28 +170,14 @@
   [filter-consumer0 inner-consumer]
   (gen-filter-fn filter-consumer0 filter-consumer0 inner-consumer))
 
-(defn is-eof?
-  "A consumer that yields a boolean that tells if the feed has reached
-  the EOF."
-  [stream]
-  (cond
-    (eof? stream) (yield true eof)
-    :else (yield false stream)))
-
-(defn print-chunks [stream]
-  "A consumer that prints the chunks is receiving into standard output,
-  this consumer will consume all the stream and it will yield a nil value."
-  (cond
-    (eof? stream) (yield nil eof)
-    (empty-chunk? stream) (continue print-chunks)
-    :else
-      (do
-        (println stream)
-        (continue print-chunks))))
-
-(def run produce-eof)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Utility macros and functions to run consumers
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(def run produce-eof)
 
 (defn- partialize-consumer [consumer]
   (if (seq? consumer)
@@ -153,7 +189,7 @@
     producer-or-filter
     (list producer-or-filter)))
 
-(defmacro nest-pfc
+(defmacro nest-producer-filter-consumer
   ([consumers]
     (if (vector? consumers)
       (map partialize-consumer consumers)
@@ -171,7 +207,8 @@
               (first more))
 
       (concat producer-or-filter
-              `((nest-pfc ~@more)))))))
+              `((nest-producer-filter-consumer ~@more)))))))
 
 (defmacro run* [& more]
-  `(run (nest-pfc ~@more)))
+  `(run (nest-producer-filter-consumer ~@more)))
+
