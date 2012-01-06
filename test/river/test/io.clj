@@ -1,9 +1,9 @@
-(ns core.stream.test.io
+(ns river.test.io
   (:use [clojure.test])
 
-  (:use [core.stream])
-  (:require [core.stream.io :as sio]
-            [core.stream.seq :as sseq]))
+  (:use [river.core])
+  (:require [river.io :as sio]
+            [river.seq :as sseq]))
 
 (deftest produce-proc-lines-test
   (let [result (run* (sio/produce-proc-lines "pwd")

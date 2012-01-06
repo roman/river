@@ -1,4 +1,4 @@
-(ns core.stream
+(ns river.core
   (:require [clojure.algo.monads :as monad]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

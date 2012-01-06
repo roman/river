@@ -1,4 +1,4 @@
-(ns core.stream.io
+(ns river.io
 
   ^{
     :author "Roman Gonzalez"
@@ -13,8 +13,8 @@
 
 ;; Local Lib ;;;;;;;
 
-  (:use core.stream)
-  (:use [core.stream.seq :only
+  (:use river.core)
+  (:use [river.seq :only
           [produce-generate]]))
 
 ;; Producers ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
