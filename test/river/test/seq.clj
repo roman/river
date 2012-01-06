@@ -1,8 +1,8 @@
-(ns core.stream.test.seq
+(ns river.test.seq
   (:use [clojure.test])
 
-  (:use core.stream)
-  (:require [core.stream.seq :as stream]))
+  (:use river.core)
+  (:require [river.seq :as stream]))
 
 ;; Producers ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

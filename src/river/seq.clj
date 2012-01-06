@@ -1,4 +1,4 @@
-(ns core.stream.seq
+(ns river.seq
 
   ^{
     :author "Roman Gonzalez"
@@ -17,7 +17,7 @@
 
 ;; Local Lib ;;;;;;;
 
-  (:use core.stream))
+  (:use river.core))
 
 ;; Consumers ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

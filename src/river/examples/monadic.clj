@@ -1,4 +1,4 @@
-(ns core.stream.examples.monadic
+(ns river.examples.monadic
   (require [clojure.algo.monads :as monad])
 
   (use [core.stream])

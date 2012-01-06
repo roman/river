@@ -1,4 +1,4 @@
-(ns core.stream.examples.sum
+(ns river.examples.sum
 
   (require [clojure.string :as string])
 
