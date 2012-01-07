@@ -187,7 +187,7 @@
     producer-or-filter
     (list producer-or-filter)))
 
-(defmacro nest-producer-filter-consumer
+(defn- nest-producer-filter-consumer
   ([consumers] consumers)
   ([producer-or-filter0 & more]
     (let [producer-or-filter (ensure-in-list producer-or-filter0)]
@@ -202,7 +202,7 @@
               (first more))
 
       (concat producer-or-filter
-              `((nest-producer-filter-consumer ~@more)))))))
+              `(~(apply nest-producer-filter-consumer more)))))))
 
 (defmacro run*
   "Works the same way as river/run, but it will ease the building
@@ -217,7 +217,7 @@
 
   > (river/run* producer2 producer1 filter1 filter2 consumer)"
   [& more]
-  `(run (nest-producer-filter-consumer ~@more)))
+  `(run ~(apply nest-producer-filter-consumer more)))
 
 (defmacro do-consumer [steps result]
   "Binds the river-m monadic implementation to the domonad macro,
