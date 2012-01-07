@@ -4,7 +4,8 @@
     :author "Roman Gonzalez"
   }
 
-;; Standard Lib ;;;;
+;; Third Party ;;;;;
+
   (:require [clojure.algo.monads :as monad]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -80,7 +81,7 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(monad/defmonad stream-m
+(monad/defmonad river-m
   [ m-result (fn [v] (yield v []))
     m-bind   (fn bind-fn [consumer f]
                (cond
@@ -177,12 +178,9 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(def run produce-eof)
-
-(defn- partialize-consumer [consumer]
-  (if (seq? consumer)
-    (cons `partial consumer)
-    consumer))
+(def run
+  "Allows to terminate ask for termination of producer, filter or consumer."
+  produce-eof)
 
 (defn- ensure-in-list [producer-or-filter]
   (if (seq? producer-or-filter)
@@ -190,10 +188,7 @@
     (list producer-or-filter)))
 
 (defmacro nest-producer-filter-consumer
-  ([consumers]
-    (if (vector? consumers)
-      (map partialize-consumer consumers)
-      (partialize-consumer consumers)))
+  ([consumers] consumers)
   ([producer-or-filter0 & more]
     (let [producer-or-filter (ensure-in-list producer-or-filter0)]
     ; when the last item (consumer) is
@@ -209,6 +204,23 @@
       (concat producer-or-filter
               `((nest-producer-filter-consumer ~@more)))))))
 
-(defmacro run* [& more]
+(defmacro run*
+  "Works the same way as river/run, but it will ease the building
+  of combination between producers, filters and consumers by allowing
+  to specify all of them without nesting one in the other.
+
+  With river/run:
+
+  > (river/run (producer2 (producer1 (filter1 (filter2 consumer)))))
+
+  With river/run*:
+
+  > (river/run* producer2 producer1 filter1 filter2 consumer)"
+  [& more]
   `(run (nest-producer-filter-consumer ~@more)))
+
+(defmacro do-consumer [steps result]
+  "Binds the river-m monadic implementation to the domonad macro,
+  check clojure.algo.monads/domonad for further info."
+  `(monad/domonad river-m ~steps ~result))
 

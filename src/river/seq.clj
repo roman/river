@@ -11,128 +11,143 @@
 
   (:require [clojure.core :as core])
 
-;; Third Party ;;;;;
-
-  (:require [clojure.algo.monads :as monad])
-
 ;; Local Lib ;;;;;;;
 
   (:use river.core))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; Consumers 
+;; Consumers
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn take
   "Returns a seq of the first n elements in the stream, or all items if
   there are fewer than n."
-  ([n-elems stream]
-    (take [] n-elems stream))
-  ([buffer n-elems stream]
-    (cond
-      (eof? stream) (yield buffer eof)
-      (empty-chunk? stream) (continue #(take buffer n-elems %))
-      :else
-        (let [taken-elems (concat buffer (core/take n-elems stream))
-              new-size    (- n-elems (count stream))]
-          (if (> new-size 0)
-            (continue #(take taken-elems new-size %))
-            (yield taken-elems (core/drop n-elems stream)))))))
+  ([n-elems]
+    (take [] n-elems))
+  ([buffer0 n-elems0]
+    (letfn [
+      (consumer [buffer n-elems stream]
+        (cond
+          (eof? stream) (yield buffer eof)
+          (empty-chunk? stream) (continue #(take buffer n-elems %))
+          :else
+            (let [taken-elems (concat buffer (core/take n-elems stream))
+                  new-size    (- n-elems (count stream))]
+              (if (> new-size 0)
+                (continue #(consumer taken-elems new-size %))
+                (yield taken-elems (core/drop n-elems stream))))))
+    ]
+    #(consumer buffer0 n-elems0 %))))
 
 (defn take-while
   "Returns a seq of successive items from the stream while (pred item)
   returns true."
-  ([pred stream] (take-while [] pred stream))
-  ([buffer pred stream]
-    (cond
-      (eof? stream) (yield buffer eof)
-      (empty-chunk? stream) (continue #(take-while buffer pred %))
-      :else
-        (let [taken-elems (core/take-while pred stream)
-              remainder   (core/drop-while pred stream)
-              new-buffer  (concat buffer taken-elems)]
-          (cond
-            (empty? remainder)
-              (continue #(take-while new-buffer pred %))
-            :else
-              (yield new-buffer remainder))))))
+  ([pred] (take-while [] pred))
+  ([buffer0 pred]
+    (letfn [
+      (consumer [buffer stream]
+        (cond
+          (eof? stream) (yield buffer eof)
+          (empty-chunk? stream) (continue #(consumer buffer %))
+          :else
+            (let [taken-elems (core/take-while pred stream)
+                  remainder   (core/drop-while pred stream)
+                  new-buffer  (concat buffer taken-elems)]
+              (cond
+                (empty? remainder)
+                  (continue #(consumer new-buffer %))
+                :else
+                  (yield new-buffer remainder)))))
+    ]
+    #(consumer buffer0 %))))
 
 (defn drop
   "Drops from the stream the first n elements."
-  [n stream]
-  (cond
-    (eof? stream) (yield nil stream)
-    (empty-chunk? stream) (continue #(drop n %))
-    :else
-      (let [new-n (- n (count stream))]
-        (if (> new-n 0)
-          (continue #(drop new-n %))
-          (yield nil (core/drop n stream))))))
+  [n0]
+  (letfn [
+    (consumer [n stream]
+      (cond
+        (eof? stream) (yield nil stream)
+        (empty-chunk? stream) (continue #(consumer n %))
+        :else
+          (let [new-n (- n (count stream))]
+            (if (> new-n 0)
+              (continue #(consumer new-n %))
+              (yield nil (core/drop n stream))))))
+  ]
+  #(consumer n0 %)))
 
 (defn drop-while
   "Drops elements from the stream until the first element that
   returns a falsy value on (pred item)."
-  [pred stream]
-  (cond
-    (eof? stream) (yield nil eof)
-    (empty-chunk? stream) (continue #(drop-while pred %))
-    :else
-      (let [new-stream (core/drop-while pred stream)]
-        (if (not (empty? new-stream))
-          (yield nil new-stream)
-          (continue #(drop-while pred %))))))
+  [pred]
+  (fn consumer [stream]
+    (cond
+     (eof? stream) (yield nil eof)
+     (empty-chunk? stream) (continue #(consumer %))
+     :else
+       (let [new-stream (core/drop-while pred stream)]
+         (if (not (empty? new-stream))
+           (yield nil new-stream)
+           (continue #(consumer %)))))))
 
 (defn consume
   "Consumes all the stream and returns it in a seq, when called
   empty-seq is supplied, it will serve as the initial buffer
   from where the stream is going to be stored."
-  ([stream0] (consume [] stream0))
-  ([empty-seq stream0]
-    (take-while empty-seq (constantly true) stream0)))
+  ([] (consume []))
+  ([empty-seq]
+    (take-while empty-seq (constantly true))))
 
 (defn reduce
   "Consumes the stream item by item supplying each of them to the f function.
   f should receive two arguments, the accumulated result and the current
   element from the stream, if no zero is provided, then it will use the first
   element of the stream as the zero value for the accumulator."
-  ([f stream]
-    (cond
-      (eof? stream) (yield nil eof)
-      (empty-chunk? stream) (continue (partial reduce f))
-      :else
-        (reduce f (core/first stream) (core/rest stream))))
-  ([f zero stream]
-    (cond
-      (eof? stream) (yield zero eof)
-      (empty-chunk? stream) (continue #(reduce f zero %))
-      :else
-        (let [new-zero (core/reduce f zero stream)]
-          (continue #(reduce f new-zero %))))))
+  ([f]
+    (fn consumer [stream]
+      (cond
+        (eof? stream) (yield nil eof)
+        (empty-chunk? stream) (continue #(consumer %))
+        :else
+          ((reduce f (core/first stream)) (core/rest stream)))))
+  ([f zero0]
+    (letfn [
+      (consumer [zero stream]
+        (cond
+          (eof? stream) (yield zero eof)
+          (empty-chunk? stream) (continue #(consumer zero %))
+          :else
+            (let [new-zero (core/reduce f zero stream)]
+              (continue #(consumer new-zero %)))))
+    ]
+    #(consumer zero0 %))))
 
-(defn first
+(def first
   "Returns the first item in the stream, returns nil when stream has reached
   EOF."
-  [stream]
-  (cond
-    (eof? stream) (yield nil eof)
-    (empty-chunk? stream) (continue first)
-    :else
-      (yield (core/first stream) (core/rest stream))))
+  (fn consumer [stream]
+    (cond
+      (eof? stream) (yield nil eof)
+      (empty-chunk? stream) (continue consumer)
+      :else
+        (yield (core/first stream) (core/rest stream)))))
 
-(defn peek [stream]
+(def peek
   "Returns the first item in the stream without actually removing it, returns
   nil when the stream has reached EOF."
-  (cond
-    (eof? stream) (yield nil eof)
-    (empty-chunk? stream) (continue peek)
-    :else
-      (yield (core/first stream) stream)))
+  (fn consumer [stream]
+    (cond
+      (eof? stream) (yield nil eof)
+      (empty-chunk? stream) (continue consumer)
+      :else
+        (yield (core/first stream) stream))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; Producers 
+;; Producers
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -325,9 +340,9 @@
                   (produce-eof (inner-consumer result))))))))
 
 (defn- split-when-consumer [f]
-  (monad/domonad stream-m
-    [first-chunks #(take-while (comp not f) %)
-     last-chunk   #(take 1 %)]
+  (do-consumer
+    [first-chunks (take-while (complement f))
+     last-chunk   (take 1)]
      (if (nil? last-chunk)
        [first-chunks]
        [(concat first-chunks last-chunk)])))
