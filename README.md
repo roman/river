@@ -125,11 +125,13 @@ something like the following:
       (numbers* consumer))))
 
 (println (run* ; producing input from a file
-           (produce-numbers-from-file "input.in")
-           ; producing input from a seq
-           (sseq/produce-seq (range 1 10))
-           ; consuming numbers from both input sources
-           (sseq/reduce + 0)))
+               (produce-numbers-from-file "input.in")
+
+               ; producing input from a seq
+               (sseq/produce-seq (range 1 10))
+
+               ; consuming numbers from both input sources
+               (sseq/reduce + 0)))
 ```
 
 ### Building consumers using algo.monad ###
@@ -139,21 +141,18 @@ we can do that using the monadic API:
 
 ```clojure
 (ns river.core.examples.monadic
-  (require [clojure.algo.monads :as monad])
-
-  (use [river.core])
-  (require [river.seq :as sseq]
-           [river.io  :as sio]))
+  (:use [river.core])
+  (:require [river.seq :as sseq]
+            [river.io  :as sio]))
 
 (def drop-and-head
-  (monad/domonad stream-m
-    ; need a `partial` to apply the pred function
-    [_ (partial sseq/drop-while #(< % 5))
+  (do-consumer
+    [_ (sseq/drop-while #(< % 5))
      b sseq/first]
     b))
 
 (println (run* (sseq/produce-seq (range -20 20))
-          drop-and-head))
+               drop-and-head))
 ```
 
 ## License ##
