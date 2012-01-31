@@ -2,9 +2,9 @@
 
   (require [clojure.string :as string])
 
-  (use [core.stream])
-  (require [core.stream.seq :as sseq]
-           [core.stream.io  :as sio]))
+  (use [river.core])
+  (require [river.seq :as sseq]
+           [river.io  :as sio]))
 
 (def words*   (partial sseq/mapcat* #(string/split % #"\s+")))
 
@@ -19,9 +19,10 @@
       (words*
         (numbers* consumer)))))
 
-(println (run* ; producing input from a file
-           produce-numbers-from-file
-           ; producing input from a seq
-           (sseq/produce-seq (range 1 10))
-           ; consuming numbers from both input sources
-           (sseq/reduce + 0)))
+(defn -main []
+  (println (run* ; producing input from a file
+                 produce-numbers-from-file
+                 ; producing input from a seq
+                 (sseq/produce-seq (range 1 10))
+                 ; consuming numbers from both input sources
+                 (sseq/reduce + 0))))
