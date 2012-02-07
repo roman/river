@@ -204,7 +204,7 @@
       (concat producer-or-filter
               `(~(apply nest-producer-filter-consumer more)))))))
 
-(defmacro run*
+(defmacro run>
   "Works the same way as river/run, but it will ease the building
   of combination between producers, filters and consumers by allowing
   to specify all of them without nesting one in the other.
@@ -213,9 +213,9 @@
 
   > (river/run (producer2 (producer1 (filter1 (filter2 consumer)))))
 
-  With river/run*:
+  With river/run>:
 
-  > (river/run* producer2 producer1 filter1 filter2 consumer)"
+  > (river/run> producer2 producer1 filter1 filter2 consumer)"
   [& more]
   `(run ~(apply nest-producer-filter-consumer more)))
 

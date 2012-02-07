@@ -34,10 +34,10 @@ the Iteratee concepts in Clojure.
 
 ## Usage ##
 
-To execute a consumer you will use the `run\*` macro:
+To execute a consumer you will use the `run>` macro:
 
 ```clojure
-(river.core/run* (river.seq/produce-seq (range 1 100))
+(river.core/run> (river.seq/produce-seq (range 1 100))
                  (river.seq/filter* #(= 0 (mod % 2)))
                  (river.seq/take 5))
 
@@ -118,13 +118,13 @@ something like the following:
 (def numbers* (partial sseq/map* #(Integer/parseInt %)))
 
 (defn produce-numbers-from-file [file-path consumer]
-  ; running producers and filters without the run* macro
+  ; running producers and filters without the run> macro
   ; decorating each filter.
   (sio/produce-file-lines file-path
     (words*
       (numbers* consumer))))
 
-(println (run* ; producing input from a file
+(println (run> ; producing input from a file
                (produce-numbers-from-file "input.in")
 
                ; producing input from a seq
@@ -151,7 +151,7 @@ we can do that using the monadic API:
      b sseq/first]
     b))
 
-(println (run* (sseq/produce-seq (range -20 20))
+(println (run> (sseq/produce-seq (range -20 20))
                drop-and-head))
 ```
 

@@ -9,5 +9,5 @@
      b rs/first]
     b))
 
-(println (run* (rs/produce-seq (range -20 20))
+(println (run> (rs/produce-seq (range -20 20))
                drop-and-head))

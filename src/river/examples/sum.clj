@@ -20,7 +20,7 @@
         (numbers* consumer)))))
 
 (defn -main []
-  (println (run* ; producing input from a file
+  (println (run> ; producing input from a file
                  produce-numbers-from-file
                  ; producing input from a seq
                  (sseq/produce-seq (range 1 10))
