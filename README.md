@@ -1,4 +1,4 @@
-# river #
+# river [![Build Status](https://secure.travis-ci.org/roman/river.png)](http://travis-ci.org/roman/river)
 
 river tries to provide an implementation of Oleg's Iteratee
 library. The terminology was changed in order to offer a more intuitive API for
