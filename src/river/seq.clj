@@ -4,14 +4,10 @@
     :author "Roman Gonzalez"
   }
 
-;; Standard Lib ;;;;
-
   (:refer-clojure :exclude
     [take take-while drop drop-while reduce first peek])
 
   (:require [clojure.core :as core])
-
-;; Local Lib ;;;;;;;
 
   (:use river.core))
 
