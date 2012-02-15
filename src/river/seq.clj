@@ -298,10 +298,13 @@
     (yield? inner-consumer) inner-consumer
     :else
       (fn outer-consumer [stream]
-        (let [stream-count (count stream)]
-          (if (> stream-count n)
-            (produce-eof (inner-consumer (core/take n stream)))
-            (isolate* (- n stream-count) (inner-consumer stream)))))))
+        (cond
+          (eof? stream) (inner-consumer eof)
+          :else
+          (let [stream-count (count stream)]
+            (if (> stream-count n)
+              (produce-eof (inner-consumer (core/take n stream)))
+              (isolate* (- n stream-count) (inner-consumer stream))))))))
 
 (defn require*
   "Throws an exception if there is not at least n elements streamed to
