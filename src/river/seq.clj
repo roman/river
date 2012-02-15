@@ -347,8 +347,8 @@
     [first-chunks (take-while (complement f))
      last-chunk   (take 1)]
      (if (nil? last-chunk)
-       [first-chunks]
-       [(concat first-chunks last-chunk)])))
+       first-chunks
+       (concat first-chunks last-chunk))))
 
 (defn split-when* [f inner-consumer]
   "Splits on elements satisfiying the given f function, the inner-consumer

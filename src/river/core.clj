@@ -147,7 +147,7 @@
         (yield? filter-consumer)
           (let [filter-result       (:result filter-consumer)
                 filter-remainder    (:remainder filter-consumer)
-                next-inner-consumer (inner-consumer filter-result)]
+                next-inner-consumer (inner-consumer [filter-result])]
 
             (if (no-remainder? filter-consumer)
               (recur filter-consumer0
