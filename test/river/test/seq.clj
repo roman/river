@@ -150,6 +150,12 @@
     (is (= (range 1 6) (:result result)))
     (is (= eof (:remainder result)))))
 
+(deftest isolate*-with-less-than-needed
+  (let [result (run> (rs/produce-seq 1 (range 1 4))
+                     (rs/isolate* 5)
+                     rs/consume)]
+    (is (= [1 2 3] (:result result)))
+    (is (= eof (:remainder result)))))
 
 (deftest require*-test
   (is (thrown? Exception
