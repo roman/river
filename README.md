@@ -32,7 +32,11 @@ The code provided in this library is still beta, there is a lot of room
 for improvement and new features, it serves as a starting point to exploit
 the Iteratee concepts in Clojure.
 
-## Usage ##
+## Install
+
+[org.van-clj/river "0.0.1"]
+
+## Usage
 
 To execute a consumer you will use the `run>` macro:
 
@@ -49,13 +53,13 @@ and finally takes 5 items from the feed. The result of this execution will be
 a `ConsumerDone` record that has the yielded _result_ and the _remainder_ of
 the given chunks.
 
-### Stream ###
+### Stream
 
 The _stream_ is what the consumer receive as an input, the stream could
 either be a seq of items (called chunks), or an EOF signal, represented by
 `river.core/eof`.
 
-### Consumers ###
+### Consumers
 
 The _consumer_ is the one that process the stream, and it will either _yield_
 a result (using `river.core/yield`) or a _continuation_ (using
@@ -71,7 +75,7 @@ monadic interface.
 chunks to yield a result, some consumers might consume part of the stream, some
 others would be greedy and consume all the available stream.
 
-### Producers ###
+### Producers
 
 The _producer_ generates the stream that the consumer will use, they normally
 consume a resource like a `lazy-seq`, file, socket, etc; and then transmits it
@@ -83,7 +87,7 @@ It stops consuming from the given resource as soon as the _consumer_ returns a
 _yield_ value.
 
 
-### Filters ###
+### Filters
 
 The _filter_ transforms the stream into something different, it either changes
 the type of the stream, or modifies the way the input is given.
@@ -95,9 +99,9 @@ Producers and Filters are also consumers, they receive a consumer as a
 parameter and they enhance the consumer behavior, they could be perceived as
 some sort of _decorator_ in the OO world.
 
-## Examples ##
+## Examples
 
-### Building filters on the fly ###
+### Building filters on the fly
 
 Say for example you want to be able to sum a list of numbers, but this
 numbers may come from different resources, some from stdin, others from a
@@ -155,7 +159,7 @@ we can do that using the monadic API:
                drop-and-head))
 ```
 
-## License ##
+## License
 
 Copyright (C) 2011 Roman Gonzalez
 
