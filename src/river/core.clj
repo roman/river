@@ -150,14 +150,14 @@
             (if (no-remainder? filter-consumer)
               (recur filter-consumer0
                      filter-consumer
-                     (ensure-done next-inner-consumer eof))
+                     (ensure-done next-inner-consumer filter-remainder))
 
               (recur filter-consumer0
                      (filter-consumer0 filter-remainder)
                      next-inner-consumer)))
 
         :else
-          (fn filter-fn [stream]
+          (fn outer-consumer [stream]
             (gen-filter-fn filter-consumer0
                            (filter-consumer stream)
                            inner-consumer)))))
