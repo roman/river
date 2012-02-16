@@ -1,0 +1,12 @@
+2012-02-14 Roman Gonzalez
+	* release v0.0.2
+	* updating the README
+	* renaming the library to use org.van-clj groupId
+	* fix bug on the `isolate*` filter
+	* fix bug on the `split-when*` filter
+	* new macro `gen-producer>` to compose producers and filters together
+	* new function `gen-producer` to compose producers and filters together
+
+2011-12-28 Roman Gonzalez
+	* Release of v0.0.1 that includes most of features
+
