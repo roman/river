@@ -250,3 +250,57 @@
   check clojure.algo.monads/domonad for further info."
   `(monad/domonad river-m ~steps ~result))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Filters...
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn mapcat** [mapping-f]
+  ".."
+  (letfn [
+    (perform-loop [inner-consumer0 [x & xs :as stream]]
+      (cond
+        (empty? stream) (continue #(step inner-consumer0 %))
+        :else
+          (let [inner-consumer (inner-consumer0 (mapping-f x))]
+            (cond
+              (continue? inner-consumer) (recur inner-consumer xs)
+              (yield? inner-consumer) (yield inner-consumer xs)))))
+    (step [inner-consumer stream]
+      (cond
+        (eof? stream)
+          (yield (continue inner-consumer) stream)
+        :else
+          (perform-loop inner-consumer stream)))
+    ]
+    (fn to-outer-consumer [inner-consumer]
+      #(step inner-consumer %))))
+
+(defn attach-to-consumer
+  "..."
+  [consumer some-filter]
+  (letfn [
+    (check [step]
+      (cond
+        (continue? step) (recur (produce-eof step))
+        (yield? step) step
+        :else
+          (throw (Exception. "Something terrible happened!"))))]
+  (do-consumer [
+    :let [outer-consumer (some-filter consumer)]
+    inner-consumer outer-consumer
+    result (check inner-consumer)]
+   result)))
+
+(defn attach-to-producer 
+  "..."
+  [producer some-filter]
+  (fn new-producer [consumer]
+    (let [new-consumer (produce-eof (producer (some-filter consumer)))]
+      (cond
+        (yield? new-consumer)
+          (:result new-consumer) 
+        (continue? new-consumer)
+          (throw (Exception. "attach-filter: missbehaving consumer"))))))
+
