@@ -256,26 +256,6 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn mapcat** [mapping-f]
-  ".."
-  (letfn [
-    (perform-loop [inner-consumer0 [x & xs :as stream]]
-      (cond
-        (empty? stream) (continue #(step inner-consumer0 %))
-        :else
-          (let [inner-consumer (inner-consumer0 (mapping-f x))]
-            (cond
-              (continue? inner-consumer) (recur inner-consumer xs)
-              (yield? inner-consumer) (yield inner-consumer xs)))))
-    (step [inner-consumer stream]
-      (cond
-        (eof? stream)
-          (yield (continue inner-consumer) stream)
-        :else
-          (perform-loop inner-consumer stream)))
-    ]
-    (fn to-outer-consumer [inner-consumer]
-      #(step inner-consumer %))))
 
 (defn attach-to-consumer
   "..."
@@ -293,14 +273,14 @@
     result (check inner-consumer)]
    result)))
 
-(defn attach-to-producer 
+(defn attach-to-producer
   "..."
   [producer some-filter]
   (fn new-producer [consumer]
     (let [new-consumer (produce-eof (producer (some-filter consumer)))]
       (cond
         (yield? new-consumer)
-          (:result new-consumer) 
-        (continue? new-consumer)
+          (:result new-consumer)
+        :else
           (throw (Exception. "attach-filter: missbehaving consumer"))))))
 
