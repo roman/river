@@ -205,9 +205,16 @@
 
 
 (deftest split-when*-test
-  (let [result (run> (rs/produce-seq 10 (range 1 12))
-                     (rs/split-when* #(= 0 (mod % 3)))
+  (let [new-producer (attach-to-producer #(rs/produce-seq 10 (range 1 12) %)
+                                         (rs/split-when* #(= 0 (mod % 3))))
+        result (run> new-producer
                      rs/consume)]
+    (is (= [[1 2 3] [4 5 6] [7 8 9] [10 11]] (:result result)))
+    (is eof (:remainder result)))
+  (let [new-consumer (attach-to-consumer rs/consume
+                                         (rs/split-when* #(= 0 (mod % 3))))
+        result (run> (rs/produce-seq 10 (range 1 12))
+                     new-consumer)]
     (is (= [[1 2 3] [4 5 6] [7 8 9] [10 11]] (:result result)))
     (is eof (:remainder result))))
 

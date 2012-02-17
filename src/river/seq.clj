@@ -227,12 +227,6 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn ensure-inner-done [f consumer]
-  (fn [stream]
-    (cond
-      (yield? consumer) (yield consumer stream)
-      :else (f consumer stream))))
-
 (defn mapcat*
   "Transform the stream by applying function f to each element in the stream.
   f will be a function that receives an item and will return a seq, the
@@ -303,16 +297,18 @@
   (letfn [
     (outer-consumer [inner-consumer stream]
       (cond
-        (empty? stream)
-          (continue #(outer-consumer inner-consumer %))
-        (eof? stream)
-          (yield inner-consumer eof)
-        :else
-          (let [new-stream (core/drop-while pred stream)]
-            (if (not (empty? new-stream))
-              (yield (inner-consumer new-stream) [])
-              (continue (ensure-inner-done outer-consumer
-                                           inner-consumer))))))]
+      (empty? stream)
+      (continue #(outer-consumer inner-consumer %))
+
+      (eof? stream)
+      (yield inner-consumer eof)
+
+      :else
+      (let [new-stream (core/drop-while pred stream)]
+         (if (not (empty? new-stream))
+           (yield (inner-consumer new-stream) [])
+           (continue (ensure-inner-done outer-consumer inner-consumer))))))]
+
   (fn to-outer-consumer [inner-consumer]
     (ensure-inner-done outer-consumer inner-consumer))))
 
@@ -355,15 +351,16 @@
   (letfn [
     (outer-consumer [total-count inner-consumer stream]
       (cond
+
       (eof? stream)
       (if (> total-count 0)
         (throw (Exception. "require*: minimum count wasn't satisifed"))
         (yield inner-consumer eof))
 
       (empty? stream)
-        (continue 
-          (ensure-inner-done (partial outer-consumer total-count)
-                             inner-consumer))
+      (continue
+        (ensure-inner-done (partial outer-consumer total-count)
+                           inner-consumer))
       :else
       (let [total-count1 (- total-count (count stream))]
         (if (<= total-count 0)
@@ -408,8 +405,8 @@
        first-chunks
        (concat first-chunks last-chunk))))
 
-(defn split-when* [f inner-consumer]
+(defn split-when* [f]
   "Splits on elements satisfiying the given f function, the inner-consumer
   will receive chunks of collections from the stream."
-  (to-filter (split-when-consumer f) inner-consumer))
+  (to-filter (split-when-consumer f)))
 

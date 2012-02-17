@@ -137,39 +137,6 @@
         (println stream)
         (continue print-chunks))))
 
-(defn- gen-filter-fn [filter-consumer0 filter-consumer inner-consumer]
-  (cond
-    (yield? inner-consumer) inner-consumer
-    :else
-      (cond
-        (yield? filter-consumer)
-          (let [filter-result       (:result filter-consumer)
-                filter-remainder    (:remainder filter-consumer)
-                next-inner-consumer (inner-consumer [filter-result])]
-
-            (if (no-remainder? filter-consumer)
-              (recur filter-consumer0
-                     filter-consumer
-                     (ensure-done next-inner-consumer filter-remainder))
-
-              (recur filter-consumer0
-                     (filter-consumer0 filter-remainder)
-                     next-inner-consumer)))
-
-        :else
-          (fn outer-consumer [stream]
-            (gen-filter-fn filter-consumer0
-                           (filter-consumer stream)
-                           inner-consumer)))))
-
-(defn to-filter
-  "Transforms a consumer into a filter by feeding the outer input elements
-  into the provided consumer until it yields an inner input, passes that to
-  the inner consumer and then loops."
-  [filter-consumer0 inner-consumer]
-  (gen-filter-fn filter-consumer0 filter-consumer0 inner-consumer))
-
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Utility macros and functions to run consumers
@@ -256,6 +223,60 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defn concat-stream [s1 s2]
+  (cond
+  (or (= s1 eof)
+      (= s2 eof)) eof
+  :else (concat s1 s2)))
+
+(defn ensure-inner-done
+  ([f consumer] (ensure-inner-done [] f consumer))
+  ([extra f consumer]
+    (fn [stream]
+      (cond
+      (yield? consumer) (yield consumer (concat-stream extra stream))
+      :else (f consumer (concat-stream extra stream))))))
+
+(defn to-filter
+  "Transforms a consumer into a filter by feeding the outer input elements
+  into the provided consumer until it yields an inner input, passes that to
+  the inner consumer and then loops."
+  [consumer0*]
+  (letfn [
+    (loop-consumer* [acc consumer* stream]
+      ; ^ this function will feed all the stream possible
+      ; to the filter consumer (consumer*), once the whole
+      ; stream is empty, we return whatever the consumer* was
+      ; able to parse from it, and the current state of 
+      ; consumer*
+      (let [new-stream (concat (:remainder consumer*) stream)]
+        (cond
+        (empty? new-stream) [acc consumer*]
+        (yield? consumer*)
+        (recur (conj acc (:result consumer*))
+               consumer0*
+               (concat (:remainder consumer*) stream))
+        (continue? consumer*)
+          (recur acc (consumer* stream) []))))
+
+    (outer-consumer [consumer* inner-consumer stream]
+      (cond
+        (eof? stream)
+        (let [final-result (produce-eof consumer*)]
+          (yield (inner-consumer [(:result final-result)]) 
+                 stream))
+
+        (empty? stream)
+        (continue #(outer-consumer consumer* inner-consumer %))
+
+        :else
+        (let [[new-stream consumer1*] (loop-consumer* [] consumer* stream)]
+          (ensure-inner-done (partial outer-consumer consumer1*)
+                             (inner-consumer new-stream)))))]
+
+  (fn to-outer-consumer [inner-consumer]
+    (ensure-inner-done (partial outer-consumer consumer0*)
+                       inner-consumer))))
 
 (defn attach-to-consumer
   "..."
