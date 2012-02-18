@@ -186,7 +186,7 @@
       ; ^ this function will feed all the stream possible
       ; to the filter consumer (consumer*), once the whole
       ; stream is empty, we return whatever the consumer* was
-      ; able to parse from it, and the current state of 
+      ; able to parse from it, and the current state of
       ; consumer*
       (let [new-stream (concat (:remainder consumer*) stream)]
         (cond
@@ -202,7 +202,7 @@
       (cond
         (eof? stream)
         (let [final-result (produce-eof consumer*)]
-          (yield (inner-consumer [(:result final-result)]) 
+          (yield (inner-consumer [(:result final-result)])
                  stream))
 
         (empty? stream)
@@ -218,29 +218,37 @@
                        inner-consumer))))
 
 (defn *c
-  "..."
-  [consumer some-filter]
-  (letfn [
-    (check [step]
-      (cond
-        (continue? step) (recur (produce-eof step))
-        (yield? step) step
-        :else
-          (throw (Exception. "Something terrible happened!"))))]
-  (do-consumer [
-    :let [outer-consumer (some-filter consumer)]
-    inner-consumer outer-consumer
-    result (check inner-consumer)]
-   result)))
+  "Binds a filter to a consumer."
+  ([a-filter consumer]
+    (letfn [
+      (check [step]
+        (cond
+          (continue? step) (recur (produce-eof step))
+          (yield? step) step
+          :else
+            (throw (Exception. "Something terrible happened!"))))]
+    (do-consumer [
+      :let [outer-consumer (a-filter consumer)]
+      inner-consumer outer-consumer
+      result (check inner-consumer)]
+     result)))
+
+  ([[ _ _ & _ :as filters]]
+    (let [[consumer a-filter & more] (reverse filters)]
+      (reduce #(*c %2 %1) (*c a-filter consumer) more))))
 
 (defn p*
-  "..."
-  [producer some-filter]
-  (fn new-producer [consumer]
-    (let [new-consumer (produce-eof (producer (some-filter consumer)))]
-      (cond
-        (yield? new-consumer)
-          (:result new-consumer)
-        :else
-          (throw (Exception. "attach-filter: missbehaving consumer"))))))
+  "Binds a filter to a producer."
+  ([producer a-filter]
+    (fn new-producer [consumer]
+      (let [new-consumer (produce-eof (producer (a-filter consumer)))]
+        (cond
+          (yield? new-consumer)
+            (:result new-consumer)
+          :else
+            (throw (Exception. "attach-filter: missbehaving consumer"))))))
+
+  ([producer a-filter & more]
+    (reduce p* (p* producer a-filter) more)))
+
 
