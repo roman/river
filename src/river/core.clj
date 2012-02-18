@@ -158,7 +158,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; Filters
+;; Filter functions
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -217,7 +217,7 @@
     (ensure-inner-done (partial outer-consumer consumer0*)
                        inner-consumer))))
 
-(defn attach-to-consumer
+(defn *c
   "..."
   [consumer some-filter]
   (letfn [
@@ -233,7 +233,7 @@
     result (check inner-consumer)]
    result)))
 
-(defn attach-to-producer
+(defn p*
   "..."
   [producer some-filter]
   (fn new-producer [consumer]
