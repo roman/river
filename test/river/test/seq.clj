@@ -75,7 +75,7 @@
 
 (deftest drop-while-test
   (let [result (run (rs/produce-seq 7 (range 1 20))
-                     (rs/drop-while #(<= % 10)))]
+                    (rs/drop-while #(<= % 10)))]
     (is (nil? (:result result)))
     (is (= (range 11 15) (:remainder result)))))
 
@@ -96,6 +96,15 @@
                      rs/peek)]
     (is (= 1 (:result result)))
     (is (= (range 1 8) (:remainder result)))))
+
+(deftest zip-test
+  (let [new-consumer (*c rs/consume
+                         (rs/mapcat* #(vector % %)))
+        result (run (rs/produce-seq 7 (range 1 4))
+                    (rs/zip new-consumer
+                            rs/consume))]
+    (is (= [[1 1 2 2 3 3] [1 2 3]] (:result result)))
+    (is (= eof (:remainder result)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -128,16 +137,6 @@
     (is (= [0 2 4 6 8] (:result result)))
     (is (= [9 10] (:remainder result)))))
 
-
-(deftest zip*-test
-  (let [result (run (rs/produce-seq 7 (range 1 4))
-                     (rs/zip*)
-                     [(rs/mapcat* #(vector % %) rs/consume)
-                      rs/consume])]
-    (is (= [[1 1 2 2 3 3] [1 2 3]] (map :result result)))
-    (is (= [eof eof] (map :remainder result)))))
-
-
 (deftest drop-while*-test
   (let [new-producer (p* (rs/produce-seq 6 (range 1 20))
                          (rs/drop-while* not-fizzbuzz))
@@ -148,7 +147,7 @@
 
 
 (deftest isolate*-test
-  (let [new-consumer (*c rs/consume 
+  (let [new-consumer (*c rs/consume
                          (rs/isolate* 5))
         result (run (rs/produce-seq 7 (range 1 10000))
                      new-consumer)]

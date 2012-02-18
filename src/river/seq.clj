@@ -150,6 +150,28 @@
       :else
         (yield (core/first stream) stream))))
 
+(defn zip
+  "Multiplexes the stream into multiple consumers, each of the consumers
+  will be feed by the stream that this filter receives, this will return
+  a list of consumer results/continuations."
+  [& inner-consumers]
+  (letfn [
+    (consumer [inner-consumers stream]
+      (cond
+        (eof? stream)
+        (yield (map (comp :result produce-eof) inner-consumers)
+               stream)
+
+        (empty? stream)
+        (continue #(consumer inner-consumers %))
+
+        :else
+          (continue
+            #(consumer (for [c inner-consumers]
+                            (ensure-done c stream))
+                       %))))]
+  #(consumer inner-consumers %)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Producers
@@ -280,18 +302,6 @@
   [pred]
   (fn to-outer-consumer [inner-consumer]
     ((mapcat* (comp #(core/filter pred %) vector)) inner-consumer)))
-
-(defn zip*
-  "Multiplexes the stream into multiple consumers, each of the consumers
-  will be feed by the stream that this filter receives, this will return
-  a list of consumer results/continuations."
-  [& inner-consumers]
-  (fn outer-consumer [stream]
-    (cond
-      (eof? stream)
-        (for [c inner-consumers] (produce-eof c))
-      :else
-        (apply zip* (for [c inner-consumers] (ensure-done c stream))))))
 
 (defn drop-while*
   "Works similarly to the drop-while consumer, it will drop elements from
