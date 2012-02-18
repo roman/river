@@ -4,16 +4,19 @@
   (:require [river.seq :as rs])
   (:use river.core))
 
-(deftest test-gen-producer
-  (let [producer (gen-producer #(rs/produce-seq (range 1 5) %)
-                               #(rs/produce-seq (range 5 10) %)
-                               #(rs/filter* even? %))
-        result (run (producer rs/consume))]
-    (is (= [6 8 2 4] (:result result)))))
+(deftest p*-multiple-arity-test
+  (let [result (run (p* (rs/produce-seq (range 1 1000))
+                        (rs/filter* #(odd? %))
+                        (rs/isolate* 10))
+                    rs/consume)]
+    (is (= [1 3 5 7 9 11 13 15 17 19] (:result result)))
+    (is eof (:remainder result))))
 
-(deftest test-gen-producer>
-  (let [producer (gen-producer> (rs/produce-seq (range 1 5))
-                                (rs/produce-seq (range 5 10))
-                                (rs/filter* even?))
-        result (run (producer rs/consume))]
-    (is (= [6 8 2 4] (:result result)))))
+(deftest *c-multiple-arity-test
+  (let [result (run (rs/produce-seq (range 1 1000))
+                    (*c (rs/filter* #(odd? %)) 
+                        (rs/isolate* 10)  
+                        rs/consume))]
+    (is (= [1 3 5 7 9 11 13 15 17 19] (:result result)))
+    (is eof (:remainder result))))
+

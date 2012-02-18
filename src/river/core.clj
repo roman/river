@@ -137,116 +137,116 @@
         (println stream)
         (continue print-chunks))))
 
-(defn- gen-filter-fn [filter-consumer0 filter-consumer inner-consumer]
-  (cond
-    (yield? inner-consumer) inner-consumer
-    :else
-      (cond
-        (yield? filter-consumer)
-          (let [filter-result       (:result filter-consumer)
-                filter-remainder    (:remainder filter-consumer)
-                next-inner-consumer (inner-consumer [filter-result])]
-
-            (if (no-remainder? filter-consumer)
-              (recur filter-consumer0
-                     filter-consumer
-                     (ensure-done next-inner-consumer filter-remainder))
-
-              (recur filter-consumer0
-                     (filter-consumer0 filter-remainder)
-                     next-inner-consumer)))
-
-        :else
-          (fn outer-consumer [stream]
-            (gen-filter-fn filter-consumer0
-                           (filter-consumer stream)
-                           inner-consumer)))))
-
-(defn to-filter
-  "Transforms a consumer into a filter by feeding the outer input elements
-  into the provided consumer until it yields an inner input, passes that to
-  the inner consumer and then loops."
-  [filter-consumer0 inner-consumer]
-  (gen-filter-fn filter-consumer0 filter-consumer0 inner-consumer))
-
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Utility macros and functions to run consumers
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(def run
+(defn run
   "Allows to terminate ask for termination of producer, filter or consumer."
-  produce-eof)
-
-(defn- ensure-in-list [producer-or-filter]
-  (if (seq? producer-or-filter)
-    producer-or-filter
-    (list producer-or-filter)))
-
-(defn- nest-producer-filter-consumer
-  ([consumers] consumers)
-  ([producer-or-filter0 & more]
-    (let [producer-or-filter (ensure-in-list producer-or-filter0)]
-    ; when last item is a vector (multiple consumers),
-    ; we just concat that to the producer/filter.
-    ;
-    ; This feature is being used currently zip* filter
-    (if (and (nil? (next more))
-             (vector? (first more)))
-
-      (concat producer-or-filter
-              (first more))
-
-      (concat producer-or-filter
-              `(~(apply nest-producer-filter-consumer more)))))))
-
-(defn gen-producer [& producer+filters-fn]
-  "Composes a seq of partially applied producers/filters, and returns a
-   new producer that receives either a producer, filter or consumer.
-
-  Usage:
-  > (def new-producer (gen-producer #(produce-seq (range 10 20) %)
-  >                                 #(produce-seq (range 1 10) %)
-  >                                 #(filter* even? %))"
-  (fn composed-producer [consumer0]
-    (reduce
-      (fn [consumer producer+filter]
-        (producer+filter consumer))
-      consumer0
-      (reverse producer+filters-fn))))
-
-
-(defmacro gen-producer> [& producers+filters]
-  "Composes a seq of producers and filters, and returns a new
-  producer that receives either a new producer, filter or consumer.
-
-  Usage:
-  > (def new-producer (gen-producer> (produce-seq (range 10 20))
-  >                                  (produce-seq (range 1  10))
-  >                                  (filter* even?)))"
-  `(fn composed-producer [~'consumer]
-    ~(apply nest-producer-filter-consumer
-           (concat producers+filters `(~'consumer)))))
-
-(defmacro run>
-  "Works the same way as river/run, its purpose is to ease the building
-  of compositions between producers, filters and consumers by allowing
-  to specify all of them without nesting one into the other.
-
-  With river/run:
-
-  > (river/run (producer2 (producer1 (filter1 (filter2 consumer)))))
-
-  With river/run>:
-
-  > (river/run> producer2 producer1 filter1 filter2 consumer)"
   [& more]
-  `(run ~(apply nest-producer-filter-consumer more)))
+  (produce-eof (reduce #(%2 %1) (reverse more))))
 
 (defmacro do-consumer [steps result]
   "Binds the river-m monadic implementation to the domonad macro,
   check clojure.algo.monads/domonad for further info."
   `(monad/domonad river-m ~steps ~result))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Filter functions
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn concat-stream [s1 s2]
+  (cond
+  (or (= s1 eof)
+      (= s2 eof)) eof
+  :else (concat s1 s2)))
+
+(defn ensure-inner-done
+  ([f consumer] (ensure-inner-done [] f consumer))
+  ([extra f consumer]
+    (fn [stream]
+      (cond
+      (yield? consumer) (yield consumer (concat-stream extra stream))
+      :else (f consumer (concat-stream extra stream))))))
+
+(defn to-filter
+  "Transforms a consumer into a filter by feeding the outer input elements
+  into the provided consumer until it yields an inner input, passes that to
+  the inner consumer and then loops."
+  [consumer0*]
+  (letfn [
+    (loop-consumer* [acc consumer* stream]
+      ; ^ this function will feed all the stream possible
+      ; to the filter consumer (consumer*), once the whole
+      ; stream is empty, we return whatever the consumer* was
+      ; able to parse from it, and the current state of
+      ; consumer*
+      (let [new-stream (concat (:remainder consumer*) stream)]
+        (cond
+        (empty? new-stream) [acc consumer*]
+        (yield? consumer*)
+        (recur (conj acc (:result consumer*))
+               consumer0*
+               (concat (:remainder consumer*) stream))
+        (continue? consumer*)
+          (recur acc (consumer* stream) []))))
+
+    (outer-consumer [consumer* inner-consumer stream]
+      (cond
+        (eof? stream)
+        (let [final-result (produce-eof consumer*)]
+          (yield (inner-consumer [(:result final-result)])
+                 stream))
+
+        (empty? stream)
+        (continue #(outer-consumer consumer* inner-consumer %))
+
+        :else
+        (let [[new-stream consumer1*] (loop-consumer* [] consumer* stream)]
+          (ensure-inner-done (partial outer-consumer consumer1*)
+                             (inner-consumer new-stream)))))]
+
+  (fn to-outer-consumer [inner-consumer]
+    (ensure-inner-done (partial outer-consumer consumer0*)
+                       inner-consumer))))
+
+(defn *c
+  "Binds a filter to a consumer."
+  ([a-filter consumer]
+    (letfn [
+      (check [step]
+        (cond
+          (continue? step) (recur (produce-eof step))
+          (yield? step) step
+          :else
+            (throw (Exception. "Something terrible happened!"))))]
+    (do-consumer [
+      :let [outer-consumer (a-filter consumer)]
+      inner-consumer outer-consumer
+      result (check inner-consumer)]
+     result)))
+
+  ([a-filter b-filter & filters]
+    (let [more (->> filters (cons b-filter) (cons a-filter))
+          [consumer a-filter & more] (reverse more)]
+      (reduce #(*c %2 %1) (*c a-filter consumer) more))))
+
+(defn p*
+  "Binds a filter to a producer."
+  ([producer a-filter]
+    (fn new-producer [consumer]
+      (let [new-consumer (produce-eof (producer (a-filter consumer)))]
+        (cond
+          (yield? new-consumer)
+            (:result new-consumer)
+          :else
+            (throw (Exception. "attach-filter: missbehaving consumer"))))))
+
+  ([producer a-filter & more]
+    (reduce p* (p* producer a-filter) more)))
+
 
