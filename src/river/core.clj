@@ -146,10 +146,7 @@
 (defn run
   "Allows to terminate ask for termination of producer, filter or consumer."
   [& more]
-  (letfn [
-    (redux [producer consumer] (producer consumer))
-  ]
-  (produce-eof (reduce redux more))))
+  (produce-eof (reduce #(%2 %1) (reverse more))))
 
 (defmacro do-consumer [steps result]
   "Binds the river-m monadic implementation to the domonad macro,
