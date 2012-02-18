@@ -194,7 +194,7 @@
           (yield? next-consumer) next-consumer
           (continue? next-consumer)
             (if (empty? remainder)
-              next-consumer
+              (continue next-consumer)
               (recur next-consumer remainder))))))))
 
 (defn produce-iterate
