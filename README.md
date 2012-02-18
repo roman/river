@@ -137,7 +137,8 @@ something like the following:
         words*
         ; ^ applies the words filter
         numbers*)))
-        ; ^ applies the number stream
+        ; ^ applies the number filter and transform
+        ; the stream from strings to numbers
 
 (defn -main []
   (println (run 
