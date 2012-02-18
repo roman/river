@@ -4,13 +4,9 @@
     :author "Roman Gonzalez"
   }
 
-;; Standard Lib ;;;;
-
   (:require [clojure.java.io :as io])
   (:import [java.io LineNumberReader
                     FileInputStream])
-
-;; Local Lib ;;;;;;;
 
   (:use river.core)
   (:use [river.seq :only

@@ -151,71 +151,6 @@
   ]
   (produce-eof (reduce redux more))))
 
-(defn- ensure-in-list [producer-or-filter]
-  (if (seq? producer-or-filter)
-    producer-or-filter
-    (list producer-or-filter)))
-
-(defn- nest-producer-filter-consumer
-  ([consumers] consumers)
-  ([producer-or-filter0 & more]
-    (let [producer-or-filter (ensure-in-list producer-or-filter0)]
-    ; when last item is a vector (multiple consumers),
-    ; we just concat that to the producer/filter.
-    ;
-    ; This feature is being used currently zip* filter
-    (if (and (nil? (next more))
-             (vector? (first more)))
-
-      (concat producer-or-filter
-              (first more))
-
-      (concat producer-or-filter
-              `(~(apply nest-producer-filter-consumer more)))))))
-
-(defn gen-producer [& producer+filters-fn]
-  "Composes a seq of partially applied producers/filters, and returns a
-   new producer that receives either a producer, filter or consumer.
-
-  Usage:
-  > (def new-producer (gen-producer #(produce-seq (range 10 20) %)
-  >                                 #(produce-seq (range 1 10) %)
-  >                                 #(filter* even? %))"
-  (fn composed-producer [consumer0]
-    (reduce
-      (fn [consumer producer+filter]
-        (producer+filter consumer))
-      consumer0
-      (reverse producer+filters-fn))))
-
-
-(defmacro gen-producer> [& producers+filters]
-  "Composes a seq of producers and filters, and returns a new
-  producer that receives either a new producer, filter or consumer.
-
-  Usage:
-  > (def new-producer (gen-producer> (produce-seq (range 10 20))
-  >                                  (produce-seq (range 1  10))
-  >                                  (filter* even?)))"
-  `(fn composed-producer [~'consumer]
-    ~(apply nest-producer-filter-consumer
-           (concat producers+filters `(~'consumer)))))
-
-(defmacro run>
-  "Works the same way as river/run, its purpose is to ease the building
-  of compositions between producers, filters and consumers by allowing
-  to specify all of them without nesting one into the other.
-
-  With river/run:
-
-  > (river/run (producer2 (producer1 (filter1 (filter2 consumer)))))
-
-  With river/run>:
-
-  > (river/run> producer2 producer1 filter1 filter2 consumer)"
-  [& more]
-  `(run ~(apply nest-producer-filter-consumer more)))
-
 (defmacro do-consumer [steps result]
   "Binds the river-m monadic implementation to the domonad macro,
   check clojure.algo.monads/domonad for further info."
@@ -223,7 +158,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; Filters...
+;; Filters
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
