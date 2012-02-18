@@ -34,7 +34,7 @@ the Iteratee concepts in Clojure.
 
 ## Install
 
-[org.van-clj/river "0.0.1"]
+[org.van-clj/river "0.1.0"]
 
 ## Usage
 
@@ -105,7 +105,7 @@ some sort of _decorator_ in the OO world.
 
 Say for example you want to be able to sum a list of numbers, but this
 numbers may come from different resources, some from stdin, others from a
-list, etc. To implement this using the clj-stream library, you would do
+list, etc. To implement this using the river library, you would do
 something like the following:
 
 ```clojure

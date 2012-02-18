@@ -1,4 +1,4 @@
-(defproject org.van-clj/river "0.0.2-SNAPSHOT"
+(defproject org.van-clj/river "0.1.0-SNAPSHOT"
   :description "A monadic stream library in Clojure (port of Haskell's enumerator)"
   :author "Roman Gonzalez"
   :repositories { "sonatype" {:url "https://oss.sonatype.org/content/repositories/snapshots/"}}
