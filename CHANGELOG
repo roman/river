@@ -1,3 +1,18 @@
+2012-02-18 Roman Gonzalez
+	* release v0.1.0
+	* removing the `run>` and `gen-producer>` macros, `gen-producer` function
+	* complete change on filter implemenation now they are binded to an
+	specific producer or filter
+	* change on producer implemenation, now they won't take a consumer
+	explicitely, instead they will return a function that recieves a consumer
+	* change on the `run` function, now it accepts a list of functions and
+	compose them, the final function gets called with a `produce-eof`
+	* added `p*` to bind filters into producers
+	* added `*c` to bind filters into consumers
+	* major refactoring of the tests to support this features
+	* Update of the README
+	* Update of the examples code
+
 2012-02-14 Roman Gonzalez
 	* release v0.0.2
 	* updating the README
