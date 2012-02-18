@@ -114,107 +114,124 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (deftest mapcat*-test
-  (let [new-consumer (*c (rs/mapcat* #(vector % %))
-                         rs/consume)
-        result (run (rs/produce-seq 7 (range 1 4))
-                     new-consumer)]
+  (let [result (run (rs/produce-seq 7 (range 1 4))
+                    (*c (rs/mapcat* #(vector % %))
+                        rs/consume))]
+    (is (= [1 1 2 2 3 3] (:result result)))
+    (is (= eof (:remainder result))))
+  (let [result (run (p* (rs/produce-seq 7 (range 1 4))
+                        (rs/mapcat* #(vector % %)))
+                    rs/consume)]
     (is (= [1 1 2 2 3 3] (:result result)))
     (is (= eof (:remainder result)))))
 
 (deftest map*-test
-  (let [new-producer (p* (rs/produce-seq 7 (range 1 10))
-                         (rs/map* #(+ % 10)))
-        result (run new-producer
-                     rs/consume)]
+  (let [result (run (p* (rs/produce-seq 7 (range 1 10))
+                        (rs/map* #(+ % 10)))
+                    rs/consume)]
+    (is (= (range 11 20) (:result result)))
+    (is (= eof (:remainder result))))
+  (let [result (run (rs/produce-seq 7 (range 1 10))
+                    (*c (rs/map* #(+ % 10))
+                        rs/consume))]
     (is (= (range 11 20) (:result result)))
     (is (= eof (:remainder result)))))
 
 
 (deftest filter*-test
-  (let [new-consumer (*c (rs/filter* #(= 0 (mod % 2)))
-                         (rs/take 5))
-        result (run (rs/produce-seq (range 0 11))
-                     new-consumer)]
+  (let [result (run (rs/produce-seq (range 0 11))
+                    (*c (rs/filter* #(= 0 (mod % 2)))
+                        (rs/take 5)))]
     (is (= [0 2 4 6 8] (:result result)))
-    (is (= [9 10] (:remainder result)))))
+    (is (= [9 10] (:remainder result))))
+  (let [result (run (p* (rs/produce-seq (range 0 11))
+                        (rs/filter* #(= 0 (mod % 2))))
+                    (rs/take 5))]
+    (is (= [0 2 4 6 8] (:result result)))
+    (is (= [] (:remainder result)))))
 
 (deftest drop-while*-test
-  (let [new-producer (p* (rs/produce-seq 6 (range 1 20))
-                         (rs/drop-while* not-fizzbuzz))
-        result (run new-producer
-                     rs/first)]
+  (let [result (run (p* (rs/produce-seq 6 (range 1 20))
+                        (rs/drop-while* not-fizzbuzz))
+                    rs/first)]
+    (is (= 15 (:result result)))
+    (is [16 17 18] (:remainder result)))
+  (let [result (run (rs/produce-seq 6 (range 1 20))
+                    (*c (rs/drop-while* not-fizzbuzz)
+                        rs/first))]
     (is (= 15 (:result result)))
     (is [16 17 18] (:remainder result))))
 
 
 (deftest isolate*-test
-  (let [new-consumer (*c (rs/isolate* 5)
-                         rs/consume )
-        result (run (rs/produce-seq 7 (range 1 10000))
-                     new-consumer)]
+  (let [result (run (rs/produce-seq 7 (range 1 10000))
+                    (*c (rs/isolate* 5)
+                        rs/consume))]
     (is (= (range 1 6) (:result result)))
-    (is (= [6 7] (:remainder result)))))
+    (is (= [6 7] (:remainder result))))
+  (let [result (run (p* (rs/produce-seq 7 (range 1 10000))
+                        (rs/isolate* 5))
+                    rs/consume)]
+    (is (= (range 1 6) (:result result)))
+    (is (= eof (:remainder result)))))
 
 (deftest isolate*-with-less-than-needed
-  (let [new-producer (p* (rs/produce-seq 1 (range 1 4))
-                         (rs/isolate* 5))
-        result (run new-producer
+  (let [result (run (p* (rs/produce-seq 1 (range 1 4))
+                        (rs/isolate* 5))
                      rs/consume)]
+    (is (= [1 2 3] (:result result)))
+    (is (= eof (:remainder result))))
+  (let [result (run (rs/produce-seq 1 (range 1 4))
+                    (*c (rs/isolate* 5)
+                        rs/consume))]
     (is (= [1 2 3] (:result result)))
     (is (= eof (:remainder result)))))
 
 (deftest require*-test
-  (let [new-producer (p* (rs/produce-seq 2 (range 1 8))
-                         (rs/require* 8))]
     (is (thrown-with-msg? Exception #"require*"
-                 (run new-producer
-                       rs/consume))))
-  (let [new-consumer (*c (rs/require* 8)
-                         rs/consume)]
+                 (run (p* (rs/produce-seq 2 (range 1 8))
+                          (rs/require* 8))
+                      rs/consume)))
+
     (is (thrown-with-msg? Exception #"require*"
                  (run (rs/produce-seq 2 (range 1 8))
-                       new-consumer)))))
+                      (*c (rs/require* 8)
+                          rs/consume)))))
 
 (deftest require*-with-more-than-needed-test
-  (let [new-producer (p* (rs/produce-seq (range 1 8))
-                         (rs/require* 1))
-        result       (run new-producer
-                           rs/consume)]
+  (let [result (run (p* (rs/produce-seq (range 1 8))
+                        (rs/require* 1))
+                    rs/consume)]
     (is (yield? result))
     (is (= [1 2 3 4 5 6 7] (:result result))))
-  (let [new-consumer (*c (rs/require* 1) 
-                         rs/consume)
-        result       (run (rs/produce-seq (range 1 8))
-                           new-consumer)]
+  (let [result (run (rs/produce-seq (range 1 8))
+                    (*c (rs/require* 1)
+                         rs/consume))]
     (is (yield? result))
     (is (= [1 2 3 4 5 6 7] (:result result)))))
 
 (deftest stream-while*-test
-  (let [new-producer (p* (rs/produce-seq 10 (range 1 20))
-                         (rs/stream-while* not-fizzbuzz))
-        result (run new-producer
-                     rs/consume)]
+  (let [result (run (p* (rs/produce-seq 10 (range 1 20))
+                        (rs/stream-while* not-fizzbuzz))
+                    rs/consume)]
     (is (= (range 1 15) (:result result)))
     (is (range 15 20) (:remainder result)))
-  (let [new-consumer (*c (rs/stream-while* not-fizzbuzz)
-                         rs/consume)
-        result (run (rs/produce-seq 10 (range 1 20))
-                     new-consumer)]
+  (let [result (run (rs/produce-seq 10 (range 1 20))
+                    (*c (rs/stream-while* not-fizzbuzz)
+                         rs/consume))]
     (is (= (range 1 15) (:result result)))
     (is (range 15 20) (:remainder result))))
 
 
 (deftest split-when*-test
-  (let [new-producer (p* (rs/produce-seq 10 (range 1 12))
-                         (rs/split-when* #(= 0 (mod % 3))))
-        result (run new-producer
-                     rs/consume)]
+  (let [result (run (p* (rs/produce-seq 10 (range 1 12))
+                        (rs/split-when* #(= 0 (mod % 3))))
+                    rs/consume)]
     (is (= [[1 2 3] [4 5 6] [7 8 9] [10 11]] (:result result)))
     (is eof (:remainder result)))
-  (let [new-consumer (*c (rs/split-when* #(= 0 (mod % 3)))
-                         rs/consume)
-        result (run (rs/produce-seq 10 (range 1 12))
-                     new-consumer)]
+  (let [result (run (rs/produce-seq 10 (range 1 12))
+                    (*c (rs/split-when* #(= 0 (mod % 3)))
+                        rs/consume))]
     (is (= [[1 2 3] [4 5 6] [7 8 9] [10 11]] (:result result)))
     (is eof (:remainder result))))
 
