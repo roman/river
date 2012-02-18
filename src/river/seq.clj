@@ -161,49 +161,53 @@
   "Produces a stream from a seq, and feeds it to the given consumer,
   when chunk-size is given the seq will be streamed every chunk-size
   elements, it will stream 8 items per chunk by default when not given."
-  ([a-seq consumer] (produce-seq 8 a-seq consumer))
-  ([chunk-size a-seq consumer]
-    (let [[input remainder] (core/split-at chunk-size a-seq)
-          next-consumer (consumer input)]
-      (cond
-        (yield? next-consumer) next-consumer
-        (continue? next-consumer)
-          (if (empty? remainder)
-            next-consumer
-            (recur chunk-size remainder next-consumer))))))
+  ([a-seq] (produce-seq 8 a-seq))
+  ([chunk-size a-seq0]
+    (fn producer [consumer0]
+      (loop [consumer consumer0
+             a-seq    a-seq0]
+      (let [[input remainder] (core/split-at chunk-size a-seq)
+            next-consumer (consumer input)]
+        (cond
+          (yield? next-consumer) next-consumer
+          (continue? next-consumer)
+            (if (empty? remainder)
+              next-consumer
+              (recur next-consumer remainder))))))))
 
 (defn produce-iterate
   "Produces an infinite stream by applying the f function on the zero value
   indefinitely. Each chunk is going to have chunk-size items, 8 by default."
-  ([f zero consumer]
-    (produce-iterate 8 f zero consumer))
-  ([chunk-size f zero consumer]
-    (produce-seq chunk-size (core/iterate f zero) consumer)))
+  ([f zero]
+    (produce-iterate 8 f zero))
+  ([chunk-size f zero]
+    (produce-seq chunk-size (core/iterate f zero))))
 
 (defn produce-repeat
   "Produces an infinite stream that will have the value elem indefinitely.
   Each chunk is going to have chunk-size items, 8 by default."
-  ([elem consumer] (produce-repeat 8 elem consumer))
-  ([chunk-size elem consumer]
-    (produce-seq chunk-size (core/repeat elem) consumer)))
+  ([elem] (produce-repeat 8 elem))
+  ([chunk-size elem]
+    (produce-seq chunk-size (core/repeat elem))))
 
 (defn produce-replicate
   "Produces a stream that will have the elem value n times. Each chunk is
   going to have chunk-size items, 8 by default."
-  ([n elem consumer] (produce-replicate 8 n elem consumer))
-  ([chunk-size n elem consumer]
-    (produce-seq chunk-size (core/replicate n elem) consumer)))
+  ([n elem] (produce-replicate 8 n elem))
+  ([chunk-size n elem]
+    (produce-seq chunk-size (core/replicate n elem))))
 
 (defn produce-generate
   "Produces a stream with the f function, f will likely have side effects
   because it will return a new value each time. When the f function returns
   a falsy value, the function will stop producing values to the stream."
-  [f consumer]
-  (if-let [result (f)]
-    (if (continue? consumer)
-      (recur f (consumer [result]))
-      consumer)
-    consumer))
+  [f]
+  (fn producer [consumer]
+    (if-let [result (f)]
+      (if (continue? consumer)
+        (recur (consumer [result]))
+        consumer)
+      consumer)))
 
 (defn- unfold [f zero]
   (if-let [whole-result (f zero)]
@@ -217,9 +221,9 @@
   a new zero, the value returned will be fed to the consumer. The stream will
   stop when the f function returns a falsy value. Each chunk is going to have
   chunk-size items, 8 by default."
-  ([f zero consumer] (produce-unfold 8 f zero consumer))
-  ([chunk-size f zero consumer]
-    (produce-seq chunk-size (unfold f zero) consumer)))
+  ([f zero] (produce-unfold 8 f zero))
+  ([chunk-size f zero]
+    (produce-seq chunk-size (unfold f zero))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;

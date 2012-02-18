@@ -143,9 +143,13 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(def run
+(defn run
   "Allows to terminate ask for termination of producer, filter or consumer."
-  produce-eof)
+  [& more]
+  (letfn [
+    (redux [producer consumer] (producer consumer))
+  ]
+  (produce-eof (reduce redux more))))
 
 (defn- ensure-in-list [producer-or-filter]
   (if (seq? producer-or-filter)
