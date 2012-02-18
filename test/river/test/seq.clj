@@ -12,13 +12,13 @@
 
 (deftest produce-seq-test
   (let [result (run (rs/produce-seq 5 (range 1 20))
-                     rs/consume)]
+                    rs/consume)]
     (is (= (range 1 20) (:result result)))
     (is (= eof (:remainder result)))))
 
 (deftest produce-iterate-test
   (let [result (run (rs/produce-iterate inc 1)
-                     (rs/take 30))]
+                    (rs/take 30))]
     (is (= (range 1 31) (:result result)))
     (is (= [31 32] (:remainder result)))))
 
@@ -30,7 +30,7 @@
 
 (deftest produce-replicate-test
   (let [result (run (rs/produce-replicate 10 "hello")
-                     rs/consume)]
+                    rs/consume)]
     (is (= (replicate 10 "hello") (:result result)))
     (is (= eof (:remainder result)))))
 
@@ -41,7 +41,7 @@
 
 (deftest produce-unfold-test
   (let [result (run (rs/produce-unfold binary-unfold 8)
-                     rs/consume)]
+                    rs/consume)]
     (is (= [0 0 0 1] (:result result)))
     (is (= eof (:remainder result)))))
 
@@ -57,19 +57,19 @@
 
 (deftest take-test
   (let [result (run (rs/produce-seq 5 (range 1 20))
-                     (rs/take 7))]
+                    (rs/take 7))]
     (is (= (range 1 8) (:result result)))
     (is (= [8 9 10] (:remainder result)))))
 
 (deftest take-while-test
   (let [result (run (rs/produce-seq 6 (range 1 20))
-                     (rs/take-while not-fizzbuzz))]
+                    (rs/take-while not-fizzbuzz))]
     (is (= (range 1 15)  (:result result)))
     (is (= (range 15 19) (:remainder result)))))
 
 (deftest drop-test
   (let [result (run (rs/produce-seq 3 (range 1 20))
-                     (rs/drop 5))]
+                    (rs/drop 5))]
     (is (nil? (:result result)))
     (is (= [6] (:remainder result)))))
 
@@ -81,7 +81,7 @@
 
 (deftest reduce-test
   (let [result (run (rs/produce-seq 7 (range 1 5))
-                     (rs/reduce + 0))]
+                    (rs/reduce + 0))]
     (is (= 10 (:result result)))
     (is (= eof (:remainder result)))))
 
@@ -93,17 +93,18 @@
 
 (deftest peek-test
   (let [result (run (rs/produce-seq 7 (range 1 20))
-                     rs/peek)]
+                    rs/peek)]
     (is (= 1 (:result result)))
     (is (= (range 1 8) (:remainder result)))))
 
 (deftest zip-test
-  (let [new-consumer (*c (rs/mapcat* #(vector % %))
+  (let [new-consumer (*c (rs/filter* #(odd? %))
+                         (rs/mapcat* #(vector % %))
                          rs/consume)
         result (run (rs/produce-seq 7 (range 1 4))
                     (rs/zip new-consumer
                             rs/consume))]
-    (is (= [[1 1 2 2 3 3] [1 2 3]] (:result result)))
+    (is (= [[1 1 3 3] [1 2 3]] (:result result)))
     (is (= eof (:remainder result)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

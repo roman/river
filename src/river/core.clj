@@ -233,8 +233,9 @@
       result (check inner-consumer)]
      result)))
 
-  ([[ _ _ & _ :as filters]]
-    (let [[consumer a-filter & more] (reverse filters)]
+  ([a-filter b-filter & filters]
+    (let [more (->> filters (cons b-filter) (cons a-filter))
+          [consumer a-filter & more] (reverse more)]
       (reduce #(*c %2 %1) (*c a-filter consumer) more))))
 
 (defn p*
