@@ -214,6 +214,8 @@
     (ensure-inner-done (partial outer-consumer consumer0*)
                        inner-consumer))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (defn *c
   "Binds a filter to a consumer."
   ([a-filter consumer]

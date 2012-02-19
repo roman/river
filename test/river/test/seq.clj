@@ -141,9 +141,9 @@
 (deftest filter*-test
   (let [result (run (rs/produce-seq (range 0 11))
                     (*c (rs/filter* #(= 0 (mod % 2)))
-                        (rs/take 5)))]
-    (is (= [0 2 4 6 8] (:result result)))
-    (is (= [9 10] (:remainder result))))
+                        rs/consume))]
+    (is (= [0 2 4 6 8 10] (:result result)))
+    (is (= eof (:remainder result))))
   (let [result (run (p* (rs/produce-seq (range 0 11))
                         (rs/filter* #(= 0 (mod % 2))))
                     (rs/take 5))]
