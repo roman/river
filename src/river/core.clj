@@ -139,7 +139,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; Utility macros and functions to run consumers
+;; function to run consumers
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -148,10 +148,49 @@
   [& more]
   (produce-eof (reduce #(%2 %1) (reverse more))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Composing consumers together
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (defmacro do-consumer [steps result]
   "Binds the river-m monadic implementation to the domonad macro,
-  check clojure.algo.monads/domonad for further info."
+  check clojure.algo.monads/domonad for further info.
+
+  Example:
+
+  > (def new-consumer
+  >     (do-consumer [
+  >       _ (river.seq/drop-while #(not= 0))
+  >       n (river.seq/first)
+  >     ]
+  >     result))
+  >
+  > (run (river.seq/produce-seq [20 3 4 0 5 6])
+  >      new-consumer)
+  > ; #river.core.ConsumerDone { :result 5 :remainder (6) }"
   `(monad/domonad river-m ~steps ~result))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Concatanating producers together
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn concat-producer [& producers]
+  "Concatenates two ore more producers, creating new producer
+  that's going stream both producers.
+
+  Example:
+
+  > (def new-producer
+  >     (concat-producer (river.seq/produce-seq (range 1 10))
+  >                      (river.seq/produce-seq (range 11 20))))
+  > (run new-producer river.seq/consume)
+  > ; river.core.ConsumerDone { :result (range 1 20) :remainder eof }"
+  (fn new-producer [consumer]
+    (reduce #(%2 %1) consumer producers)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -160,6 +199,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn concat-stream [s1 s2]
+  "Concatenates two streams together; whenever a stream gets concatenated
+  with `river.core/eof`, the latter is returned."
   (cond
   (or (= s1 eof)
       (= s2 eof)) eof
@@ -215,9 +256,13 @@
                        inner-consumer))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Binding filters to producers & consumers
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn *c
-  "Binds a filter to a consumer."
+  "Binds one or more filters to a consumer."
   ([a-filter consumer]
     (letfn [
       (check [step]
@@ -238,7 +283,7 @@
       (reduce #(*c %2 %1) (*c a-filter consumer) more))))
 
 (defn p*
-  "Binds a filter to a producer."
+  "Binds one or more filters to a producer."
   ([producer a-filter]
     (fn new-producer [consumer]
       (let [new-consumer (produce-eof (producer (a-filter consumer)))]

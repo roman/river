@@ -1,4 +1,4 @@
-2012-02-18 Roman Gonzalez
+2012-02-19 Roman Gonzalez
 	* release v0.1.0
 	* remove the `run>` and `gen-producer>` macros, `gen-producer` function
 	* complete change on filter implemenation now they are binded to an
@@ -9,6 +9,7 @@
 	compose them, the final function gets called with a `produce-eof`
 	* add `p*` to bind filters into producers
 	* add `*c` to bind filters into consumers
+	* add the `concat-producer` function
 	* major refactoring of the tests to support this features
 	* update of the README
 	* update of the examples code
