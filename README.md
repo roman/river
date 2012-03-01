@@ -34,7 +34,9 @@ the Iteratee concepts in Clojure.
 
 ## Install
 
+```clojure
 [org.van-clj/river "0.1.0"]
+```
 
 ## Usage
 
