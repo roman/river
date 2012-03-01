@@ -8,19 +8,24 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; Consumer record, builder and query functions
+;; ## Consumer record, builder and query functions
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defrecord ConsumerDone [result remainder])
 
-(def ^{:doc "The EOF value used by the stream algorithms"}
-  eof ::eof)
+(def eof
+  "A flag used by producers to indicate EOF"
+  ::eof)
 
-(def ^{:doc "Returns true when the eof value is given."}
+(def ^{
+    :arglists '([stream]),
+    :doc "Returns true when `stream` is equal to the eof flag."}
   eof? #(= eof %))
 
-(def ^{:doc "Returns true when a chunk is empty."}
+(def ^{
+    :arglists '([stream]),
+    :doc "Returns true when a the given `stream` is an empty chunk."}
   empty-chunk? empty?)
 
 (defn yield?
@@ -29,45 +34,48 @@
   [consumer] (-> (type consumer) (= ConsumerDone)))
 
 (defn yield
-  "Returns a result from a consumer, the only way to return results is
-  by using the yield function"
+  "Returns a result from a consumer, you _should_ always return values
+  from a consumer using this funcion."
   [result remainder] (ConsumerDone. result remainder))
 
 (defn has-remainder?
-  "Returns true when the remainder of a consumer result is not EOF."
+  "Returns true when the remainder of a consumer yield result is not EOF."
   [result] (not (eof? (:remainder result))))
 
 (defn no-remainder?
-  "Returns true when the remainder of a consumer is EOF."
+  "Returns true when the remainder of a consumer yield result is EOF."
   [result] (eof? (:remainder result)))
 
 (defn empty-remainder?
-  "Returns true when the remainder of a consumer result is not EOF and
+  "Returns true when the remainder of a consumer yield result is not EOF and
   it is empty."
   [result]
   (and (not (no-remainder? result))
        (empty? (:remainder result))))
 
-(def
-  ^{:doc "Returns true when the consumer is a continuation."}
+(def ^{
+    :arglists '([consumer])
+    :doc "Returns true when the `consumer` is a continuation function."}
   continue? fn?)
 
-(def
-  ^{:doc "Returns a continuation from a consumer." }
+(def ^{
+  :arglists '([continuation])
+  :doc "Returns a continuation from a consumer, you _should_ always return
+  continuations from a consumer using this function."}
   continue identity)
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; Utility functions
+;; ## Utility functions
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
 (defn ensure-done
-  "Checks if the consumer has yielded a result, if that's the case it just
-  returns the given consumer, otherwise it will call the consumer's
-  continuation with the given stream as it's input."
+  "Checks if the `consumer` is a `yield` result, if that's the case this value
+  is returned, otherwise it will call the `consumer`'s continuation with the
+  given `stream` as it's input."
   [consumer stream]
   (cond
     (continue? consumer) (consumer stream)
@@ -75,34 +83,42 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; Monadic implementation of Consumer
+;; ## Monadic implementation of Consumer
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(monad/defmonad river-m
-  [ m-result (fn [v] (yield v []))
+(defn bind-consumer
+  "Receives a `consumer` and a continuation function, the result of the
+  `consumer ` is then given as an argument to the `f` function, and this
+  function must return a new consumer. This function is used for monadic
+  notation of consumers."
+  [consumer f]
+  (cond
+    (and (yield? consumer)
+         (empty-remainder? consumer))
+    (f (:result consumer))
+
+    (yield? consumer)
+    (let [next-consumer (f (:result consumer))]
+      (cond
+        (continue? next-consumer)
+        (next-consumer (:remainder consumer))
+        (yield? next-consumer)
+        (yield (:result next-consumer)
+               (:remainder consumer))))
+
+    (continue? consumer)
+    (comp #(bind-consumer % f) consumer)))
+
+(monad/defmonad consumer-m
+  [ m-result (fn result-fn [v] (yield v []))
     m-bind   (fn bind-fn [consumer f]
-               (cond
-                 (and (yield? consumer)
-                      (empty-remainder? consumer))
-                   (f (:result consumer))
-
-                 (yield? consumer)
-                   (let [next-consumer (f (:result consumer))]
-                     (cond
-                       (continue? next-consumer)
-                         (next-consumer (:remainder consumer))
-                       (yield? next-consumer)
-                         (yield (:result next-consumer)
-                                (:remainder consumer))))
-
-                 (continue? consumer)
-                   (comp #(bind-fn % f) consumer)))
+               (bind-consumer consumer f))
   ])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; Basic Producers/Consumers/Filters
+;; ## Basic Producers/Consumers/Filters
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -126,9 +142,10 @@
     (eof? stream) (yield true eof)
     :else (yield false stream)))
 
-(defn print-chunks [stream]
+(defn print-chunks
   "A consumer that prints the chunks is receiving into standard output,
   this consumer will consume all the stream and it will yield a nil value."
+  [stream]
   (cond
     (eof? stream) (yield nil eof)
     (empty-chunk? stream) (continue print-chunks)
@@ -139,7 +156,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; function to run consumers
+;; ## Function to run consumers
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -154,53 +171,57 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defmacro do-consumer [steps result]
-  "Binds the river-m monadic implementation to the domonad macro,
-  check clojure.algo.monads/domonad for further info.
+(defmacro do-consumer
+  "Binds the consumer-m monadic implementation to the domonad macro,
+  check `clojure.algo.monads/domonad` for further info.
 
   Example:
 
-  > (def new-consumer
-  >     (do-consumer [
-  >       _ (river.seq/drop-while #(not= 0))
-  >       n (river.seq/first)
-  >     ]
-  >     result))
-  >
-  > (run (river.seq/produce-seq [20 3 4 0 5 6])
-  >      new-consumer)
-  > ; #river.core.ConsumerDone { :result 5 :remainder (6) }"
-  `(monad/domonad river-m ~steps ~result))
+    (def new-consumer
+        (do-consumer [
+          _ (river.seq/drop-while #(not= 0))
+          n (river.seq/first)
+        ]
+        result))
+
+    (run (river.seq/produce-seq [20 3 4 0 5 6])
+         new-consumer)
+
+    ; #river.core.ConsumerDone { :result 5 :remainder (6) }"
+  [steps result]
+  `(monad/domonad consumer-m ~steps ~result))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; Concatanating producers together
+;; ## Concatanating producers together
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn concat-producer [& producers]
+(defn concat-producer
   "Concatenates two ore more producers, creating new producer
   that's going stream both producers.
 
   Example:
 
-  > (def new-producer
-  >     (concat-producer (river.seq/produce-seq (range 1 10))
-  >                      (river.seq/produce-seq (range 11 20))))
-  > (run new-producer river.seq/consume)
-  > ; river.core.ConsumerDone { :result (range 1 20) :remainder eof }"
+    (def new-producer
+        (concat-producer (river.seq/produce-seq (range 1 10))
+                         (river.seq/produce-seq (range 11 20))))
+    (run new-producer river.seq/consume)
+    ; river.core.ConsumerDone { :result (range 1 20) :remainder eof }"
+  [& producers]
   (fn new-producer [consumer]
     (reduce #(%2 %1) consumer producers)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; Filter functions
+;; ## Filter functions
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn concat-stream [s1 s2]
+(defn concat-stream
   "Concatenates two streams together; whenever a stream gets concatenated
   with `river.core/eof`, the latter is returned."
+  [s1 s2]
   (cond
   (or (= s1 eof)
       (= s2 eof)) eof
@@ -257,7 +278,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; Binding filters to producers & consumers
+;; ## Binding filters to producers & consumers
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -270,7 +291,7 @@
           (continue? step) (recur (produce-eof step))
           (yield? step) step
           :else
-            (throw (Exception. "Something terrible happened!"))))]
+            (throw (Exception. "*c: Invalid step (not continue nor yield)"))))]
     (do-consumer [
       :let [outer-consumer (a-filter consumer)]
       inner-consumer outer-consumer

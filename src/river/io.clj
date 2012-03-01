@@ -2,6 +2,11 @@
 
   ^{
     :author "Roman Gonzalez"
+    :doc "
+    This namespace provides `producers` that will generate a stream out
+    of a java `InputStream` or a `Reader`, it also offers consumers to write
+    a stream of bytes to a java `OutputStream` and a stream of characters
+    to a `Writer`."
   }
 
   (:require [clojure.java.io :as io])
@@ -14,7 +19,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; Producers
+;; ## Producers
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -26,10 +31,17 @@
                :encoding "UTF-8"})))
 
 (defn produce-reader-chars
-  "Stream characters from an input (uses clojure.java.io/reader
-  internally), and streams it to the given consumer. When
-  buffer-size is given, each chunk will have a buffer-size number of
-  chars (defaults to 1024 chars)."
+  "Produces characters from an input (uses clojure.java.io/reader
+  internally), and streams it to the given consumer. Possible `opts` are:
+
+  * `:buffer-size`: the size of each chunk (defaults to 1024 characters).
+  * `clojure.java.io/reader` options.
+
+  Example:
+
+    ; returns a yield with a seq of characters
+    (run (produce-reader-chars \"filename.txt\") consume)
+  "
   ([input & opts]
     (let [{:keys [buffer-size encoding]} (io-default-options opts)]
       (fn producer [consumer0]
@@ -43,8 +55,16 @@
               consumer)))))))))
 
 (defn produce-reader-lines
-  "Stream lines from an input element (uses clojure.java.io/reader
-  internally), and streams it to the given consumer."
+  "Produces lines from an `input` element (uses `clojure.java.io/reader`
+  internally), and streams it to the given consumer. Possible `opts` are:
+
+  * `clojure.java.io/reader` options.
+
+  Example:
+
+    ; returns a yield with a seq of lines
+    (run (produce-reader-lines \"filename.txt\") consume)
+  "
   ([input & opts]
     (io!
       (let [{:keys [encoding]} (io-default-options opts)
@@ -53,9 +73,17 @@
       (produce-generate #(.readLine reader))))))
 
 (defn produce-input-stream-bytes
-  "Stream bytes from a given input, and streams it to the
-  given consumer. When buffer-size is given, each chunk will have
-  buffer-size number of bytes (defaults to 1024)."
+  "Produces bytes from a given `input` element (uses
+  `clojure.java.io/input-stream` interally), and streams it to the
+  given consumer. Possible `opts` are:
+
+  * `:buffer-size`: the size of each chunk (defaults to 1024 bytes).
+
+  Example:
+
+    ; returns a yield with a seq of bytes
+    (run (produce-reader-bytes \"filename.txt\") consume)
+  "
   ([input & opts]
     (let [{:keys [buffer-size encoding]} (io-default-options opts)]
     (fn [consumer0]
@@ -68,34 +96,16 @@
                (recur (consumer (take n-bytes (vec buffer))))
                consumer)))))))))
 
-(defn produce-file-bytes
-  "Stream bytes from a file, specified by filename, uses
-  produce-input-stream-bytes internally with a FileInputStream class."
-  ([filename & opts]
-   (fn producer [consumer]
-     (with-open [input-stream (FileInputStream. filename)]
-       ((apply produce-input-stream-bytes input-stream opts) consumer)))))
-
-(defn produce-file-chars
-  "Stream characters from a file, specified by filename, uses
-  produce-input-stream-chars internally with a FileInputStream class."
-  ([filename & opts]
-    (fn producer [consumer]
-      (with-open [input-stream (FileInputStream. filename)]
-        ((apply produce-reader-chars input-stream opts) consumer)))))
-
-(defn produce-file-lines
-  "Stream lines from a file, specified by filename, uses
-  produce-input-stream-lines internally with a FileInputStream class."
-  [filename & opts]
-  (fn producer [consumer]
-    (with-open [input-stream (FileInputStream. filename)]
-      ((apply produce-reader-lines input-stream opts) consumer))))
-
 (defn produce-proc-bytes
-  "Stream bytes from an OS process executing the cmd command, it uses
-  produce-input-stream-bytes internally."
-  ([cmd & opts]
+  "Produces bytes from an OS process executing the `cmd` command, it uses
+  `produce-input-stream-bytes` internally.
+
+  Example:
+
+    ; returns a yield with a seq of bytes
+    (run (produce-proc-bytes \"ls -l\" :chunk-size 20) consume)
+  "
+  ([^String cmd & opts]
     (fn producer [consumer]
       (with-open [input-stream (-> (Runtime/getRuntime)
                                    (.exec cmd)
@@ -103,9 +113,15 @@
         ((apply produce-input-stream-bytes input-stream opts) consumer)))))
 
 (defn produce-proc-chars
-  "Stream chars from an OS process executing the cmd command, it uses
-  produce-input-stream-chars internally."
-  ([cmd & opts]
+  "Produces chars from an OS process executing the `cmd` command, it uses
+  `produce-input-stream-chars` internally.
+
+  Example:
+
+    ; returns a yield with a seq of characters
+    (run (produce-proc-chars \"ls -l\" :chunk-size 20) consume)
+  "
+  ([^String cmd & opts]
     (fn producer [consumer]
     (with-open [input-stream (-> (Runtime/getRuntime)
                                  (.exec cmd)
@@ -113,8 +129,14 @@
       ((apply produce-reader-chars input-stream opts) consumer)))))
 
 (defn produce-proc-lines
-  "Stream lines from an OS process executing the cmd command, it uses
-  produce-input-stream-lines internally."
+  "Produces lines from an OS process executing the `cmd` command, it uses
+  `produce-input-stream-lines` internally.
+
+  Example:
+
+    ; returns a yield with a seq of lines
+    (run (produce-proc-lines \"ls -l\" :chunk-size 20) consume)
+  "
   [cmd & opts]
   (fn producer [consumer]
     (with-open [input-stream (-> (Runtime/getRuntime)
@@ -124,21 +146,21 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; Consumers
+;; ## Consumers
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn write-bytes-to-output-stream
-  "Receives an OutputStream jk"
+  "Consumes a stream of bytes and writes over to the given `output-stream`.
+
+  **WARNING**: The caller has to close the `output-stream`, this consumer won't
+  close it once the stream is finished."
   [^java.io.OutputStream output-stream]
   (letfn [
-    (consumer [os stream]
+    (consumer [os ^java.io.OutputStream stream]
       (cond
       (eof? stream)
-      (do
-        (.close os)
-        (yield nil stream))
-
+      (yield nil stream)
       (empty-chunk? stream)
       (continue #(consumer os %))
 
@@ -149,6 +171,10 @@
   (continue #(consumer output-stream %))))
 
 (defn write-chars-to-writer
+  "Consumes a stream of characters and writes over to the given `writer`.
+
+  **WARNING**: The caller has to close the `writer`, this consumer won't
+  close it once the stream is finished."
   [^java.io.Writer writer]
   (letfn [
     (consumer [wr stream]
