@@ -157,7 +157,7 @@
   close it once the stream is finished."
   [^java.io.OutputStream output-stream]
   (letfn [
-    (consumer [os ^java.io.OutputStream stream]
+    (consumer [os stream]
       (cond
       (eof? stream)
       (yield nil stream)
