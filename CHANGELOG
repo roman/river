@@ -1,3 +1,8 @@
+2012-02-29 Roman Gonzalez
+	* release v0.1.1
+	* improve documentation adding marginalia
+	* fix issue regarding missbehaving consumers when using filters
+
 2012-02-19 Roman Gonzalez
 	* release v0.1.0
 	* remove the `run>` and `gen-producer>` macros, `gen-producer` function

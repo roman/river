@@ -163,7 +163,7 @@
         (yield (map (comp :result produce-eof) inner-consumers)
                stream)
 
-        (empty? stream)
+        (empty-chunk? stream)
         (continue #(consumer inner-consumers %))
 
         :else
@@ -262,7 +262,7 @@
   (letfn [
     (feed-inner-loop [inner-consumer [item & items :as stream]]
       (cond
-      (empty? stream) [inner-consumer stream]
+      (empty-chunk? stream) [inner-consumer stream]
       (yield? inner-consumer) [inner-consumer stream]
       (continue? inner-consumer)
         (recur (inner-consumer (f item))
@@ -271,7 +271,7 @@
     (outer-consumer [inner-consumer stream]
       (cond
       (eof? stream)
-      (yield inner-consumer stream)
+      (yield (inner-consumer stream) stream)
 
       (empty-chunk? stream)
       (continue #(outer-consumer inner-consumer %))
@@ -311,15 +311,15 @@
   (letfn [
     (outer-consumer [inner-consumer stream]
       (cond
-      (empty? stream)
-      (continue #(outer-consumer inner-consumer %))
-
       (eof? stream)
-      (yield inner-consumer eof)
+      (yield (inner-consumer stream) stream)
+
+      (empty-chunk? stream)
+      (continue #(outer-consumer inner-consumer %))
 
       :else
       (let [new-stream (core/drop-while pred stream)]
-         (if (not (empty? new-stream))
+         (if (not (empty-chunk? new-stream))
            (yield (inner-consumer new-stream) [])
            (continue (ensure-inner-done outer-consumer inner-consumer))))))]
 
@@ -334,11 +334,10 @@
   (letfn [
     (outer-consumer [total-count inner-consumer stream]
       (cond
-
       (eof? stream)
-      (yield inner-consumer eof)
+      (yield (inner-consumer stream) eof)
 
-      (empty? stream)
+      (empty-chunk? stream)
       (continue #(outer-consumer total-count
                                  inner-consumer
                                  %))
@@ -365,13 +364,12 @@
   (letfn [
     (outer-consumer [total-count inner-consumer stream]
       (cond
-
       (eof? stream)
       (if (> total-count 0)
         (throw (Exception. "require*: minimum count wasn't satisifed"))
-        (yield inner-consumer eof))
+        (yield (inner-consumer stream) stream))
 
-      (empty? stream)
+      (empty-chunk? stream)
       (continue
         (ensure-inner-done (partial outer-consumer total-count)
                            inner-consumer))
@@ -394,11 +392,10 @@
   (letfn [
     (outer-consumer [inner-consumer stream]
       (cond
-
       (eof? stream)
-      (yield inner-consumer stream)
+      (yield (inner-consumer stream) stream)
 
-      (empty? stream)
+      (empty-chunk? stream)
       (continue #(outer-consumer inner-consumer %))
 
       :else
