@@ -1,6 +1,8 @@
-2012-03-01 Roman Gonzalez
+Unknown Date Roman Gonzalez
 	* release v0.1.2
 	* fix typing hint error on write-bytes-to-output-stream consumer
+	* fix produce-seq bug, was not working properly on initial consumers
+	that were yield.
 
 2012-02-29 Roman Gonzalez
 	* release v0.1.1
