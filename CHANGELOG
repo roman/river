@@ -2,7 +2,11 @@ Unknown Date Roman Gonzalez
 	* release v0.1.2
 	* fix typing hint error on write-bytes-to-output-stream consumer
 	* fix produce-seq bug, was not working properly on initial consumers
-	that were yield.
+	that were yield
+	* fix _super nasty bug_ on the p* function, now the composition
+	of multiple filters on producers is guaranteed
+	* removed the ensure-inner-done utility function, this was causing serious
+	conceals of bugs on the stacktraces
 
 2012-02-29 Roman Gonzalez
 	* release v0.1.1

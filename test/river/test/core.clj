@@ -14,7 +14,7 @@
                   (rs/stream-while* (constantly true))
                   (rs/split-when* (constantly false))]
 
-        consumers [rs/consume
+        consumers [(rs/consume)
                    (rs/take 2)
                    (rs/take-while (constantly true))
                    (rs/drop 2)
@@ -22,7 +22,7 @@
                    rs/first
                    rs/peek]]
     (doseq [f filters*
-          c consumers]
+            c consumers]
         (is (yield? (run (*c f c)))
             (str "expected " f " and " c " to yield a result")))))
 

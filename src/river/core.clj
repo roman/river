@@ -227,13 +227,22 @@
       (= s2 eof)) eof
   :else (concat s1 s2)))
 
-(defn ensure-inner-done
-  ([f consumer] (ensure-inner-done [] f consumer))
-  ([extra f consumer]
-    (fn [stream]
-      (cond
-      (yield? consumer) (yield consumer (concat-stream extra stream))
-      :else (f consumer (concat-stream extra stream))))))
+;(defn ensure-inner-done
+;  ([f inner-consumer] (ensure-inner-done [] f inner-consumer))
+;  ([extra f inner-consumer]
+;    (fn ensure-inner-done-consumer [stream]
+;      (cond
+;
+;      (yield? inner-consumer)
+;      (yield inner-consumer (concat-stream extra stream))
+;
+;      (continue? inner-consumer)
+;      (f inner-consumer (concat-stream extra stream))
+;
+;      :else
+;      (throw
+;        (Exception.
+;          "ensure-inner-done: invalid consumer (not yield nor continue)"))))))
 
 (defn to-filter
   "Transforms a consumer into a filter by feeding the outer input elements
@@ -241,40 +250,55 @@
   the inner consumer and then loops."
   [consumer0*]
   (letfn [
-    (loop-consumer* [acc consumer* stream]
+    (loop-consumer* [acc consumer* outer-stream]
       ; ^ this function will feed all the stream possible
       ; to the filter consumer (consumer*), once the whole
       ; stream is empty, we return whatever the consumer* was
       ; able to parse from it, and the current state of
       ; consumer*
-      (let [new-stream (concat (:remainder consumer*) stream)]
-        (cond
-        (empty? new-stream) [acc consumer*]
-        (yield? consumer*)
+      (cond
+
+      (and (empty-chunk? outer-stream)
+           (continue? consumer*)) [acc consumer*]
+
+      (yield? consumer*)
         (recur (conj acc (:result consumer*))
                consumer0*
-               (concat (:remainder consumer*) stream))
-        (continue? consumer*)
-          (recur acc (consumer* stream) []))))
+               (concat (:remainder consumer*) outer-stream))
 
-    (outer-consumer [consumer* inner-consumer stream]
+      (continue? consumer*)
+        (recur acc (consumer* outer-stream) [])))
+
+    (outer-consumer [consumer* inner-consumer outer-stream]
       (cond
-        (eof? stream)
+
+      (yield? inner-consumer)
+        (yield inner-consumer outer-stream)
+
+      (continue? inner-consumer)
+        (cond
+
+        (eof? outer-stream)
         (let [final-result (produce-eof consumer*)]
           (yield (inner-consumer [(:result final-result)])
-                 stream))
+                 outer-stream))
 
-        (empty? stream)
+        (empty-chunk? outer-stream)
         (continue #(outer-consumer consumer* inner-consumer %))
 
         :else
-        (let [[new-stream consumer1*] (loop-consumer* [] consumer* stream)]
-          (ensure-inner-done (partial outer-consumer consumer1*)
-                             (inner-consumer new-stream)))))]
+        (let [[inner-stream consumer1*] (loop-consumer* []
+                                                        consumer*
+                                                        outer-stream)]
+
+          (recur consumer1* (inner-consumer inner-stream) []))
+      :else
+        (throw
+          (Exception.
+            "to-filter: invalid inner consumer (not yield nor continue)")))))]
 
   (fn to-outer-consumer [inner-consumer]
-    (ensure-inner-done (partial outer-consumer consumer0*)
-                       inner-consumer))))
+    #(outer-consumer consumer0* inner-consumer %))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -288,10 +312,10 @@
     (letfn [
       (check [step]
         (cond
-          (continue? step) (recur (produce-eof step))
-          (yield? step) step
-          :else
-            (throw (Exception. "*c: Invalid step (not continue nor yield)"))))]
+          (continue? step)
+          (do
+            (produce-eof step))
+          (yield? step) step))]
     (do-consumer [
       :let [outer-consumer (a-filter consumer)]
       inner-consumer outer-consumer
@@ -312,7 +336,7 @@
           (yield? new-consumer)
             (:result new-consumer)
           :else
-            (throw (Exception. "attach-filter: missbehaving consumer"))))))
+            (throw (Exception. "p*: missbehaving consumer"))))))
 
   ([producer a-filter & more]
     (reduce p* (p* producer a-filter) more)))

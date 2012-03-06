@@ -270,21 +270,31 @@
 
     (outer-consumer [inner-consumer stream]
       (cond
-      (eof? stream)
-      (yield (inner-consumer stream) stream)
 
-      (empty-chunk? stream)
-      (continue #(outer-consumer inner-consumer %))
+      (yield? inner-consumer)
+        (yield inner-consumer stream)
 
+      (continue? inner-consumer)
+        (cond
+
+        (eof? stream)
+          ;(yield (inner-consumer stream) stream)
+          (yield inner-consumer stream)
+
+        (empty-chunk? stream)
+          (continue #(outer-consumer inner-consumer %))
+
+        :else
+          (let [[inner-consumer remainder] (feed-inner-loop inner-consumer
+                                                            stream)]
+            (recur inner-consumer remainder)))
       :else
-      (let [[inner-consumer remainder] (feed-inner-loop inner-consumer
-                                                        stream)]
-        (continue
-          ((ensure-inner-done outer-consumer
-                              inner-consumer) remainder)))))]
+        (throw
+          (Exception.
+            "mapcat*: invalid consumer (not yield nor continue)"))))]
 
   (fn to-outer-consumer [inner-consumer]
-    (ensure-inner-done outer-consumer inner-consumer))))
+    (continue #(outer-consumer inner-consumer %)))))
 
 (defn map*
   "Transform the stream by applying function `f` to each element in the stream.
@@ -311,20 +321,30 @@
   (letfn [
     (outer-consumer [inner-consumer stream]
       (cond
-      (eof? stream)
-      (yield (inner-consumer stream) stream)
 
-      (empty-chunk? stream)
-      (continue #(outer-consumer inner-consumer %))
+        (yield? inner-consumer)
+          (yield inner-consumer stream)
 
-      :else
-      (let [new-stream (core/drop-while pred stream)]
-         (if (not (empty-chunk? new-stream))
-           (yield (inner-consumer new-stream) [])
-           (continue (ensure-inner-done outer-consumer inner-consumer))))))]
+        (continue? inner-consumer)
+          (cond
+          (eof? stream)
+            (yield (inner-consumer stream) stream)
+
+          (empty-chunk? stream)
+            (continue #(outer-consumer inner-consumer %))
+
+          :else
+            (let [new-stream (core/drop-while pred stream)]
+               (if (not (empty-chunk? new-stream))
+                 (yield (inner-consumer new-stream) [])
+                 (continue #(outer-consumer inner-consumer %)))))
+        :else
+          (throw
+            (Exception.
+              "drop-while*: invalid consumer (not yield nor continue)"))))]
 
   (fn to-outer-consumer [inner-consumer]
-    (ensure-inner-done outer-consumer inner-consumer))))
+    (continue #(outer-consumer inner-consumer %)))))
 
 (defn isolate*
   "Prevents the consumer from receiving more stream than the specified in
@@ -334,28 +354,38 @@
   (letfn [
     (outer-consumer [total-count inner-consumer stream]
       (cond
-      (eof? stream)
-      (yield (inner-consumer stream) eof)
 
-      (empty-chunk? stream)
-      (continue #(outer-consumer total-count
-                                 inner-consumer
-                                 %))
+      (yield? inner-consumer)
+        (yield inner-consumer stream)
+
+      (continue? inner-consumer)
+        (cond
+
+        (eof? stream)
+          (yield inner-consumer eof)
+
+        (empty-chunk? stream)
+          (continue #(outer-consumer total-count
+                                     inner-consumer
+                                     %))
+        :else
+          (let [stream-count (count stream)
+                total-count1 (- total-count stream-count)]
+
+            (if (> stream-count total-count)
+              (yield (inner-consumer (core/take total-count stream))
+                     (core/drop total-count stream))
+
+              (continue #(outer-consumer total-count1
+                                         (inner-consumer stream)
+                                         %)))))
       :else
-      (let [stream-count (count stream)
-            total-count1 (- total-count stream-count)]
+        (throw
+          (Exception.
+            "isolate*: invalid consumer (not yield nor continue)"))))]
 
-        (if (> stream-count total-count)
-          (yield (inner-consumer (core/take total-count stream))
-                 (core/drop total-count stream))
-
-          (continue
-            (ensure-inner-done (partial outer-consumer
-                                        total-count1)
-                               (inner-consumer stream)))))))]
   (fn to-outer-consumer [consumer]
-    (ensure-inner-done (partial outer-consumer n)
-                       consumer))))
+    (continue #(outer-consumer n consumer %)))))
 
 (defn require*
   "Throws an exception if there is not at least `n` elements streamed to
@@ -364,26 +394,37 @@
   (letfn [
     (outer-consumer [total-count inner-consumer stream]
       (cond
-      (eof? stream)
-      (if (> total-count 0)
-        (throw (Exception. "require*: minimum count wasn't satisifed"))
-        (yield (inner-consumer stream) stream))
 
-      (empty-chunk? stream)
-      (continue
-        (ensure-inner-done (partial outer-consumer total-count)
-                           inner-consumer))
+      (yield? inner-consumer)
+        (yield inner-consumer stream)
+
+      (continue? inner-consumer)
+        (cond
+
+        (eof? stream)
+          (if (> total-count 0)
+            (throw (Exception. "require*: minimum count wasn't satisifed"))
+            (yield inner-consumer stream))
+
+        (empty-chunk? stream)
+          (continue #(outer-consumer total-count
+                                     inner-consumer
+                                     %))
+
+        :else
+          (let [total-count1 (- total-count (count stream))]
+            (if (<= total-count 0)
+              (yield (inner-consumer stream) [])
+              (continue #(outer-consumer total-count1
+                                         (inner-consumer stream)
+                                         %)))))
       :else
-      (let [total-count1 (- total-count (count stream))]
-        (if (<= total-count 0)
-          (yield (inner-consumer stream) [])
+        (throw
+          (Exception.
+            "require*: invalid consumer (not yield nor continue)"))))]
 
-          (continue
-            (ensure-inner-done (partial outer-consumer total-count1)
-                               (inner-consumer stream)))))))]
   (fn to-outer-consumer [inner-consumer]
-    (ensure-inner-done (partial outer-consumer n)
-                       inner-consumer))))
+    (continue #(outer-consumer n inner-consumer %)))))
 
 (defn stream-while*
   "Streams elements to the consumer until the `f` function returns a falsy
@@ -392,21 +433,29 @@
   (letfn [
     (outer-consumer [inner-consumer stream]
       (cond
-      (eof? stream)
-      (yield (inner-consumer stream) stream)
+      (yield? inner-consumer)
+        (yield inner-consumer stream)
 
-      (empty-chunk? stream)
-      (continue #(outer-consumer inner-consumer %))
+      (continue? inner-consumer)
+        (cond
+        (eof? stream)
+        (yield (inner-consumer stream) stream)
 
+        (empty-chunk? stream)
+        (continue #(outer-consumer inner-consumer %))
+
+        :else
+        (let [[to-feed to-drop] (span f stream)]
+          (if (empty? to-drop)
+            (continue #(outer-consumer (inner-consumer to-feed) %))
+            (yield (inner-consumer to-feed) to-drop))))
       :else
-      (let [[to-feed to-drop] (span f stream)]
-        (if (empty? to-drop)
-          (continue (ensure-inner-done outer-consumer
-                                       (inner-consumer to-feed)))
-          (yield (inner-consumer to-feed) to-drop)))))]
+        (throw
+          (Exception.
+            "stream-while*: invalid consumer (not yield nor continue)"))))]
 
   (fn to-outer-consumer [inner-consumer]
-    (ensure-inner-done outer-consumer inner-consumer))))
+    (continue #(outer-consumer inner-consumer %)))))
 
 (defn- split-when-consumer [f]
   (do-consumer
