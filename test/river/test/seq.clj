@@ -45,6 +45,16 @@
     (is (= [0 0 0 1] (:result result)))
     (is (= eof (:remainder result)))))
 
+(deftest producers-with-yield-consumer-test
+  (let [producers [(rs/produce-seq (range 1 10))
+                  (rs/produce-unfold binary-unfold 8)
+                  (rs/produce-repeat "hello")
+                  (rs/produce-replicate 10 "hello")
+                  (rs/produce-iterate inc 1)]]
+    (doseq [p producers]
+      (is (= 5 (:result (run p (yield 5 []))))
+          (str "producer " p " doesn't work when consumer is yield.")))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Consumers

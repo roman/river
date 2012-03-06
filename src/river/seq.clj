@@ -189,11 +189,11 @@
     (fn producer [consumer0]
       (loop [consumer consumer0
              a-seq    a-seq0]
-      (let [[input remainder] (core/split-at chunk-size a-seq)
-            next-consumer (consumer input)]
         (cond
-          (yield? next-consumer) next-consumer
-          (continue? next-consumer)
+          (yield? consumer) consumer
+          (continue? consumer)
+          (let [[input remainder] (core/split-at chunk-size a-seq)
+                next-consumer (consumer input)]
             (if (empty? remainder)
               (continue next-consumer)
               (recur next-consumer remainder))))))))
